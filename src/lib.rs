@@ -1,7 +1,9 @@
-use winit::event::{ElementState, Event, KeyEvent, WindowEvent};
-use winit::event_loop::EventLoop;
-use winit::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};
-use winit::window::{Window, WindowBuilder};
+use winit::{
+    event::*,
+    event_loop::EventLoop,
+    keyboard::{Key, NamedKey},
+    window::{Window, WindowBuilder},
+};
 
 pub async fn run() {
     let event_loop = EventLoop::new().unwrap();
@@ -11,10 +13,6 @@ pub async fn run() {
 
     event_loop
         .run(move |event, elwt| match event {
-            Event::UserEvent(..) => {
-                state.window.request_redraw();
-            }
-
             Event::WindowEvent {
                 window_id,
                 ref event,
@@ -39,12 +37,17 @@ pub async fn run() {
                     _ => (),
                 },
 
-                WindowEvent::RedrawRequested => match state.render() {
-                    Ok(_) => {}
-                    Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
-                    Err(wgpu::SurfaceError::OutOfMemory) => elwt.exit(),
-                    Err(e) => eprintln!("{:?}", e),
-                },
+                WindowEvent::RedrawRequested => {
+                    state.window.request_redraw();
+                    match state.render() {
+                        Ok(_) => {}
+                        Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
+                            state.resize(state.size)
+                        }
+                        Err(wgpu::SurfaceError::OutOfMemory) => elwt.exit(),
+                        Err(e) => eprintln!("{:?}", e),
+                    }
+                }
 
                 _ => (),
             },
@@ -137,7 +140,7 @@ impl<'a> State<'a> {
         };
         surface.configure(&device, &config);
 
-        State {
+        Self {
             surface,
             size,
             config,
