@@ -1,4 +1,6 @@
+mod camera;
 use bytemuck::{Pod, Zeroable};
+use camera::{Camera, CameraUniform};
 use wgpu::util::DeviceExt;
 use winit::{
     event::{Event, WindowEvent},
@@ -40,11 +42,11 @@ const VERTICES: &[Vertex] = &[
         color: [0.5, 0.0, 0.5],
     }, // C
     Vertex {
-        position: [0.35966998, -0.3473291, 0.0],
+        position: [0.35966998, -0.44939706, 0.0],
         color: [0.5, 0.0, 0.5],
     }, // D
     Vertex {
-        position: [0.44147372, 0.2347359, 0.0],
+        position: [1.441_473_7, 0.2347359, 0.0],
         color: [0.5, 0.0, 0.5],
     }, // E
 ];
@@ -59,6 +61,10 @@ struct State<'a> {
     pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
+    camera: Camera,
+    camera_uniform: CameraUniform,
+    camera_buffer: wgpu::Buffer,
+    camera_bind_group: wgpu::BindGroup,
     pub window: &'a Window,
 }
 
@@ -100,14 +106,47 @@ impl<'a> State<'a> {
             .unwrap();
         surface.configure(&device, &config);
 
-        let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
+        let camera = Camera::new();
+        let mut camera_uniform = CameraUniform::new();
+        camera_uniform.update_view_proj(&camera);
+
+        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Camera Buffer"),
+            contents: bytemuck::cast_slice(&[camera_uniform]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let camera_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+                label: Some("camera_bind_group_layout"),
+            });
+
+        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &camera_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+            label: Some("camera_bind_group"),
+        });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[],
+            bind_group_layouts: &[&camera_bind_group_layout],
             push_constant_ranges: &[],
         });
 
+        let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
         let swapchain_capabilities = surface.get_capabilities(&adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
 
@@ -153,6 +192,10 @@ impl<'a> State<'a> {
             pipeline,
             vertex_buffer,
             index_buffer,
+            camera,
+            camera_uniform,
+            camera_buffer,
+            camera_bind_group,
             window,
         }
     }
@@ -183,6 +226,7 @@ impl<'a> State<'a> {
                 occlusion_query_set: None,
             });
             rpass.set_pipeline(&self.pipeline);
+            rpass.set_bind_group(0, &self.camera_bind_group, &[]);
             rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             rpass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             rpass.draw_indexed(0..INDICES.len() as u32, 0, 0..1);
@@ -199,8 +243,24 @@ impl<'a> State<'a> {
         self.config.width = new_size.width.max(1);
         self.config.height = new_size.height.max(1);
         self.surface.configure(&self.device, &self.config);
+        // self.camera.aspect = self.config.width as f32 / self.config.height as f32;
+        self.update();
         // On macos the window needs to be redrawn manually after resizing
         self.window.request_redraw();
+    }
+
+    fn input(&mut self, event: &WindowEvent) {
+        self.camera.process_inputs(event)
+    }
+
+    fn update(&mut self) {
+        self.camera.update_camera();
+        self.camera_uniform.update_view_proj(&self.camera);
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::cast_slice(&[self.camera_uniform]),
+        );
     }
 }
 
@@ -211,10 +271,27 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
             let Event::WindowEvent { event, .. } = event else {
                 return;
             };
+            state.input(&event);
 
             match event {
                 WindowEvent::Resized(new_size) => state.resize(new_size),
-                WindowEvent::RedrawRequested => state.render().unwrap(),
+                WindowEvent::RedrawRequested => {
+                    state.window.request_redraw();
+                    state.update();
+                    match state.render() {
+                        Ok(_) => {}
+                        Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
+                            state.resize(state.size);
+                        }
+
+                        Err(wgpu::SurfaceError::OutOfMemory) => {
+                            log::error!("OutOfMemory");
+                            target.exit();
+                        }
+
+                        Err(wgpu::SurfaceError::Timeout) => log::warn!("Surface timeout"),
+                    }
+                }
                 WindowEvent::CloseRequested => target.exit(),
                 _ => {}
             };
