@@ -2,6 +2,7 @@ mod camera;
 mod texture;
 use bytemuck::{Pod, Zeroable};
 use camera::{Camera, CameraUniform};
+use texture::Texture;
 use wgpu::util::DeviceExt;
 use winit::{
     event::{Event, WindowEvent},
@@ -31,14 +32,24 @@ impl Vertex {
 
 #[rustfmt::skip]
 const VERTICES: &[Vertex] = &[
-    Vertex { position: [-0.0868241, 0.49240386, 0.0], tex_coords: [0.4131759, 0.99240386], }, // A
-    Vertex { position: [-0.49513406, 0.06958647, 0.0], tex_coords: [0.0048659444, 0.56958647], }, // B
-    Vertex { position: [-0.21918549, -0.44939706, 0.0], tex_coords: [0.28081453, 0.05060294], }, // C
-    Vertex { position: [0.35966998, -0.3473291, 0.0], tex_coords: [0.85967, 0.1526709], }, // D
-    Vertex { position: [0.44147372, 0.2347359, 0.0], tex_coords: [0.9414737, 0.7347359], }, // E
+    Vertex { position: [-0.5, -0.5, -0.5], tex_coords: [0.0, 0.0] },
+    Vertex { position: [ 0.5, -0.5, -0.5], tex_coords: [1.0, 0.0] },
+    Vertex { position: [ 0.5,  0.5, -0.5], tex_coords: [1.0, 1.0] },
+    Vertex { position: [-0.5,  0.5, -0.5], tex_coords: [0.0, 1.0] },
+    Vertex { position: [-0.5, -0.5,  0.5], tex_coords: [0.0, 0.0] },
+    Vertex { position: [ 0.5, -0.5,  0.5], tex_coords: [1.0, 0.0] },
+    Vertex { position: [ 0.5,  0.5,  0.5], tex_coords: [1.0, 1.0] },
+    Vertex { position: [-0.5,  0.5,  0.5], tex_coords: [0.0, 1.0] },
 ];
 
-const INDICES: &[u16] = &[0, 1, 4, 1, 2, 4, 2, 3, 4];
+const INDICES: &[u16] = &[
+    0, 1, 2, 2, 3, 0, // front
+    1, 5, 6, 6, 2, 1, // right
+    7, 6, 5, 5, 4, 7, // back
+    4, 0, 3, 3, 7, 4, // left
+    4, 5, 1, 1, 0, 4, // bottom
+    3, 2, 6, 6, 7, 3, // top
+];
 struct State<'a> {
     surface: wgpu::Surface<'a>,
     device: wgpu::Device,
@@ -53,6 +64,7 @@ struct State<'a> {
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     diffuse_bind_group: wgpu::BindGroup,
+    depth_texture: Texture,
     pub window: &'a Window,
 }
 
@@ -202,8 +214,14 @@ impl<'a> State<'a> {
                 targets: &[Some(swapchain_format.into())],
             }),
             primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
             multiview: None,
             cache: None,
         });
@@ -218,6 +236,11 @@ impl<'a> State<'a> {
             contents: bytemuck::cast_slice(INDICES),
             usage: wgpu::BufferUsages::INDEX,
         });
+        let depth_texture = texture::Texture::create_depth_texture(
+            &device,
+            (config.width, config.height),
+            "depth_texture",
+        );
 
         Self {
             surface,
@@ -233,6 +256,7 @@ impl<'a> State<'a> {
             camera_buffer,
             camera_bind_group,
             diffuse_bind_group,
+            depth_texture,
             window,
         }
     }
@@ -258,7 +282,14 @@ impl<'a> State<'a> {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_texture.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
@@ -281,7 +312,13 @@ impl<'a> State<'a> {
         self.config.width = new_size.width.max(1);
         self.config.height = new_size.height.max(1);
         self.surface.configure(&self.device, &self.config);
-        // self.camera.aspect = self.config.width as f32 / self.config.height as f32;
+        self.camera.aspect = self.config.width as f32 / self.config.height as f32;
+        self.depth_texture = texture::Texture::create_depth_texture(
+            &self.device,
+            (self.config.width, self.config.height),
+            "depth_texture",
+        );
+
         self.update();
         // On macos the window needs to be redrawn manually after resizing
         self.window.request_redraw();

@@ -1,4 +1,4 @@
-use cgmath::{Angle, Basis3, InnerSpace, Matrix3, Point3, Rotation, Vector3};
+use cgmath::{InnerSpace, Matrix3, Point3, Vector3};
 use winit::{
     event::{ElementState, KeyEvent, WindowEvent},
     keyboard::{KeyCode, PhysicalKey},
