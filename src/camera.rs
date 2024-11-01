@@ -1,4 +1,4 @@
-use cgmath::{Angle, InnerSpace, Point3, Vector3};
+use cgmath::{Angle, Basis3, InnerSpace, Matrix3, Point3, Rotation, Vector3};
 use winit::{
     event::{ElementState, KeyEvent, WindowEvent},
     keyboard::{KeyCode, PhysicalKey},
@@ -35,9 +35,9 @@ pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
 impl Camera {
     pub fn new() -> Self {
         Camera {
-            eye: Point3::new(0.5, 0.0, -2.0),
+            eye: Point3::new(0.0, 0.0, -2.0),
             forward: Vector3::new(0.0, 0.0, 1.0),
-            up: Vector3::new(0.0, 1.0, 0.0),
+            up: Vector3::unit_y(),
             aspect: 1.0,
             fovy: 45.0,
             znear: 0.1,
@@ -111,15 +111,15 @@ impl Camera {
             WindowEvent::CursorMoved { position, .. } if self.cursor_down => {
                 let dx = position.x - self.last_cursor_position.unwrap_or((position.x, 0.0)).0;
                 let dy = position.y - self.last_cursor_position.unwrap_or((0.0, position.y)).1;
-                self.last_cursor_position = Some((position.x, position.y));
-                let right = self.forward.cross(Vector3::unit_y()).normalize();
-                let yaw = cgmath::Rad(dx as f32 * 0.007);
-                self.forward = (self.forward * yaw.cos() - right * yaw.sin()).normalize();
-                self.up = self.forward.cross(right).normalize();
+                let yaw = cgmath::Rad(dx as f32 * 0.004);
+                let pitch = cgmath::Rad(dy as f32 * 0.004);
 
-                let pitch = cgmath::Rad(dy as f32 * 0.007);
-                self.forward = (self.forward * pitch.cos() + self.up * pitch.sin()).normalize();
-                self.up = -self.forward.cross(right).normalize();
+                let right = self.forward.cross(self.up).normalize();
+                let rot = Matrix3::from_axis_angle(self.up, yaw)
+                    * Matrix3::from_axis_angle(right, -pitch);
+                self.last_cursor_position = Some((position.x, position.y));
+
+                self.forward = rot * self.forward;
             }
             _ => (),
         }
