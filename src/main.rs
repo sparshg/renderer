@@ -1,4 +1,5 @@
 mod camera;
+mod compute;
 mod texture;
 use bytemuck::{Pod, Zeroable};
 use camera::{Camera, CameraUniform};
@@ -32,24 +33,82 @@ impl Vertex {
 
 #[rustfmt::skip]
 const VERTICES: &[Vertex] = &[
-    Vertex { position: [-0.5, -0.5, -0.5], tex_coords: [0.0, 0.0] },
-    Vertex { position: [ 0.5, -0.5, -0.5], tex_coords: [1.0, 0.0] },
-    Vertex { position: [ 0.5,  0.5, -0.5], tex_coords: [1.0, 1.0] },
-    Vertex { position: [-0.5,  0.5, -0.5], tex_coords: [0.0, 1.0] },
-    Vertex { position: [-0.5, -0.5,  0.5], tex_coords: [0.0, 0.0] },
-    Vertex { position: [ 0.5, -0.5,  0.5], tex_coords: [1.0, 0.0] },
-    Vertex { position: [ 0.5,  0.5,  0.5], tex_coords: [1.0, 1.0] },
-    Vertex { position: [-0.5,  0.5,  0.5], tex_coords: [0.0, 1.0] },
+       Vertex { position: [ 0. , 0., 0.], tex_coords: [0., 0.] },
+       Vertex { position: [ 0.5, 0., 0.], tex_coords: [0.5, 0.] },
+       Vertex { position: [ 1. , 1., 0.], tex_coords: [1., -1.] },
+       
+       Vertex { position: [ -1. , 0., 0.], tex_coords: [0., 0.] },
+       Vertex { position: [ -0.5, 0., 0.], tex_coords: [0.5, 0.] },
+       Vertex { position: [ 0.  , 1., 0.], tex_coords: [1., 1.] },
+    //    Vertex { position: [ 1.        ,  0.        , 0.], tex_coords: [0., 0.] },
+    //    Vertex { position: [ 1.        ,  0.41421357, 0.], tex_coords: [0.5, 0.] },
+    //    Vertex { position: [ 0.70710677,  0.70710677, 0.], tex_coords: [1., 1.] },
+    //    Vertex { position: [ 0.70710677,  0.70710677, 0.], tex_coords: [0., 0.] },
+    //    Vertex { position: [ 0.41421357,  1.        , 0.], tex_coords: [0.5, 0.] },
+    //    Vertex { position: [ 0.        ,  1.        , 0.], tex_coords: [1., 1.] },
+    //    Vertex { position: [ 0.        ,  1.        , 0.], tex_coords: [0., 0.] },
+    //    Vertex { position: [-0.41421357,  1.        , 0.], tex_coords: [0.5, 0.] },
+    //    Vertex { position: [-0.70710677,  0.70710677, 0.], tex_coords: [1., 1.] },
+    //    Vertex { position: [-0.70710677,  0.70710677, 0.], tex_coords: [0., 0.] },
+    //    Vertex { position: [-1.        ,  0.41421357, 0.], tex_coords: [0.5, 0.] },
+    //    Vertex { position: [-1.        ,  0.        , 0.], tex_coords: [1., 1.] },
+    //    Vertex { position: [-1.        ,  0.        , 0.], tex_coords: [0., 0.] },
+    //    Vertex { position: [-1.        , -0.41421357, 0.], tex_coords: [0.5, 0.] },
+    //    Vertex { position: [-0.70710677, -0.70710677, 0.], tex_coords: [1., 1.] },
+    //    Vertex { position: [-0.70710677, -0.70710677, 0.], tex_coords: [0., 0.] },
+    //    Vertex { position: [-0.41421357, -1.        , 0.], tex_coords: [0.5, 0.] },
+    //    Vertex { position: [-0.        , -1.        , 0.], tex_coords: [1., 1.] },
+    //    Vertex { position: [-0.        , -1.        , 0.], tex_coords: [0., 0.] },
+    //    Vertex { position: [ 0.41421357, -1.        , 0.], tex_coords: [0.5, 0.] },
+    //    Vertex { position: [ 0.70710677, -0.70710677, 0.], tex_coords: [1., 1.] },
+    //    Vertex { position: [ 0.70710677, -0.70710677, 0.], tex_coords: [0., 0.] },
+    //    Vertex { position: [ 1.        , -0.41421357, 0.], tex_coords: [0.5, 0.] },
+    //    Vertex { position: [ 1.        ,  0.        , 0.], tex_coords: [1., 1.] },
 ];
 
-const INDICES: &[u16] = &[
-    0, 1, 2, 2, 3, 0, // front
-    1, 5, 6, 6, 2, 1, // right
-    7, 6, 5, 5, 4, 7, // back
-    4, 0, 3, 3, 7, 4, // left
-    4, 5, 1, 1, 0, 4, // bottom
-    3, 2, 6, 6, 7, 3, // top
-];
+// const INDICES: &[u16] = &[0, 1, 2];
+
+struct DeviceQueue {
+    pub device: wgpu::Device,
+    pub queue: wgpu::Queue,
+    adapter: wgpu::Adapter,
+}
+
+impl DeviceQueue {
+    async fn new(compatible_surface: Option<&wgpu::Surface<'_>>) -> Self {
+        let instance = wgpu::Instance::default();
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::default(),
+                force_fallback_adapter: false,
+                // Request an adapter which can render to our surface
+                compatible_surface: compatible_surface,
+            })
+            .await
+            .expect("Failed to find an appropriate adapter");
+
+        // Create the logical device and command queue
+        let (device, queue) = adapter
+            .request_device(
+                &wgpu::DeviceDescriptor {
+                    label: None,
+                    required_features: wgpu::Features::empty(),
+                    required_limits: wgpu::Limits::default().using_resolution(adapter.limits()),
+                    memory_hints: wgpu::MemoryHints::default(),
+                },
+                None,
+            )
+            .await
+            .expect("Failed to create device");
+
+        Self {
+            device,
+            queue,
+            adapter,
+        }
+    }
+}
+
 struct State<'a> {
     surface: wgpu::Surface<'a>,
     device: wgpu::Device,
@@ -65,6 +124,7 @@ struct State<'a> {
     camera_bind_group: wgpu::BindGroup,
     diffuse_bind_group: wgpu::BindGroup,
     depth_texture: Texture,
+    indices: Vec<u16>,
     pub window: &'a Window,
 }
 
@@ -101,6 +161,11 @@ impl<'a> State<'a> {
             .await
             .expect("Failed to create device");
 
+        // let DeviceQueue {
+        //     device,
+        //     queue,
+        //     adapter,
+        // } = DeviceQueue::new(Some(&surface)).await;
         let config = surface
             .get_default_config(&adapter, size.width, size.height)
             .unwrap();
@@ -148,7 +213,7 @@ impl<'a> State<'a> {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler), // CHANGED!
+                    resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
                 },
             ],
             label: Some("diffuse_bind_group"),
@@ -231,9 +296,26 @@ impl<'a> State<'a> {
             contents: bytemuck::cast_slice(VERTICES),
             usage: wgpu::BufferUsages::VERTEX,
         });
+        // let indices = (0..VERTICES.len() as u16).collect::<Vec<_>>();
+        let indices = delaunator::triangulate(
+            &VERTICES
+                .iter()
+                .step_by(3)
+                .map(|v| delaunator::Point {
+                    x: v.position[0] as f64,
+                    y: v.position[1] as f64,
+                })
+                .collect::<Vec<_>>(),
+        )
+        .triangles
+        .into_iter()
+        .map(|i| i as u16 * 3)
+        .chain(0..VERTICES.len() as u16)
+        .collect::<Vec<_>>();
+
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(INDICES),
+            contents: bytemuck::cast_slice(&indices),
             usage: wgpu::BufferUsages::INDEX,
         });
         let depth_texture = texture::Texture::create_depth_texture(
@@ -258,6 +340,7 @@ impl<'a> State<'a> {
             diffuse_bind_group,
             depth_texture,
             window,
+            indices,
         }
     }
 
@@ -298,7 +381,7 @@ impl<'a> State<'a> {
             rpass.set_bind_group(1, &self.diffuse_bind_group, &[]);
             rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             rpass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            rpass.draw_indexed(0..INDICES.len() as u32, 0, 0..1);
+            rpass.draw_indexed(0..self.indices.len() as u32, 0, 0..1);
         }
 
         self.queue.submit(Some(encoder.finish()));
