@@ -1,8 +1,12 @@
 mod camera;
 mod compute;
 mod texture;
+
 use bytemuck::{Pod, Zeroable};
 use camera::{Camera, CameraUniform};
+use cgmath::{Vector2, Vector3};
+use encase::{ArrayLength, ShaderType, StorageBuffer};
+// use compute::Vertex;
 use texture::Texture;
 use wgpu::util::DeviceExt;
 use winit::{
@@ -11,60 +15,201 @@ use winit::{
     window::Window,
 };
 
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Pod, Zeroable)]
-struct Vertex {
-    position: [f32; 3],
-    tex_coords: [f32; 2],
-}
+// #[derive(Copy, Clone, Debug, ShaderType)]
+// pub struct Vertex {
+//     position: Vector3<f32>,
+//     uv: Vector2<f32>,
+// }
 
-impl Vertex {
-    const ATTRIBS: [wgpu::VertexAttribute; 2] =
-        wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2];
+// impl Vertex {
+//     const ATTRIBS: [wgpu::VertexAttribute; 2] =
+//         wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2];
 
-    fn desc() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Self>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &Self::ATTRIBS,
-        }
-    }
-}
+//     pub fn desc() -> wgpu::VertexBufferLayout<'static> {
+//         wgpu::VertexBufferLayout {
+//             array_stride: 24,
+//             step_mode: wgpu::VertexStepMode::Vertex,
+//             attributes: &Self::ATTRIBS,
+//         }
+//     }
+// }
+
+// impl Points {
+//     fn as_wgsl_bytes(&self) -> Vec<u8> {
+//         let mut buffer = encase::StorageBuffer::new(Vec::new());
+//         buffer.write(self).unwrap();
+
+//         buffer.into_inner()
+//     }
+// }
 
 #[rustfmt::skip]
-const VERTICES: &[Vertex] = &[
-       Vertex { position: [ 0. , 0., 0.], tex_coords: [0., 0.] },
-       Vertex { position: [ 0.5, 0., 0.], tex_coords: [0.5, 0.] },
-       Vertex { position: [ 1. , 1., 0.], tex_coords: [1., -1.] },
-       
-       Vertex { position: [ -1. , 0., 0.], tex_coords: [0., 0.] },
-       Vertex { position: [ -0.5, 0., 0.], tex_coords: [0.5, 0.] },
-       Vertex { position: [ 0.  , 1., 0.], tex_coords: [1., 1.] },
-    //    Vertex { position: [ 1.        ,  0.        , 0.], tex_coords: [0., 0.] },
-    //    Vertex { position: [ 1.        ,  0.41421357, 0.], tex_coords: [0.5, 0.] },
-    //    Vertex { position: [ 0.70710677,  0.70710677, 0.], tex_coords: [1., 1.] },
-    //    Vertex { position: [ 0.70710677,  0.70710677, 0.], tex_coords: [0., 0.] },
-    //    Vertex { position: [ 0.41421357,  1.        , 0.], tex_coords: [0.5, 0.] },
-    //    Vertex { position: [ 0.        ,  1.        , 0.], tex_coords: [1., 1.] },
-    //    Vertex { position: [ 0.        ,  1.        , 0.], tex_coords: [0., 0.] },
-    //    Vertex { position: [-0.41421357,  1.        , 0.], tex_coords: [0.5, 0.] },
-    //    Vertex { position: [-0.70710677,  0.70710677, 0.], tex_coords: [1., 1.] },
-    //    Vertex { position: [-0.70710677,  0.70710677, 0.], tex_coords: [0., 0.] },
-    //    Vertex { position: [-1.        ,  0.41421357, 0.], tex_coords: [0.5, 0.] },
-    //    Vertex { position: [-1.        ,  0.        , 0.], tex_coords: [1., 1.] },
-    //    Vertex { position: [-1.        ,  0.        , 0.], tex_coords: [0., 0.] },
-    //    Vertex { position: [-1.        , -0.41421357, 0.], tex_coords: [0.5, 0.] },
-    //    Vertex { position: [-0.70710677, -0.70710677, 0.], tex_coords: [1., 1.] },
-    //    Vertex { position: [-0.70710677, -0.70710677, 0.], tex_coords: [0., 0.] },
-    //    Vertex { position: [-0.41421357, -1.        , 0.], tex_coords: [0.5, 0.] },
-    //    Vertex { position: [-0.        , -1.        , 0.], tex_coords: [1., 1.] },
-    //    Vertex { position: [-0.        , -1.        , 0.], tex_coords: [0., 0.] },
-    //    Vertex { position: [ 0.41421357, -1.        , 0.], tex_coords: [0.5, 0.] },
-    //    Vertex { position: [ 0.70710677, -0.70710677, 0.], tex_coords: [1., 1.] },
-    //    Vertex { position: [ 0.70710677, -0.70710677, 0.], tex_coords: [0., 0.] },
-    //    Vertex { position: [ 1.        , -0.41421357, 0.], tex_coords: [0.5, 0.] },
-    //    Vertex { position: [ 1.        ,  0.        , 0.], tex_coords: [1., 1.] },
+const VERTICES: [Vector3<f32>; 5] = [
+    // Vector3 { x: 0., y: 0., z: 0.},    
+    // Vector3 { x: 0.5 , y: 0., z: 0.},
+    // Vector3 { x: 1., y: 1., z: 0.},
+    Vector3 { x: 1., y: 0., z: 0.},    
+    Vector3 { x: 1. , y: 0.41421357, z: 0.},
+    Vector3 { x: 0.70710677, y: 0.70710677, z: 0.},
+    Vector3 { x: 0.41421357, y: 1., z: 0.},
+    Vector3 { x: 0., y: 1., z: 0.},
+    // Vertex{ position: Vector3 { x: 1., y: 1.5, z: 0. }, uv: Vector2 { x: 14., y: 15. } },
+    // Vertex{ position: Vector3 { x: 0., y: 2., z: 0. }, uv: Vector2 { x: 14., y: 15. } },
+    // Vertex{ position: Vector3 { x: 16., y: 17., z: 18. }, uv: Vector2 { x: 19., y: 20. } },
+    // Vertex{ position: Vector3 { x: 21., y: 22., z: 23. }, uv: Vector2 { x: 24., y: 25. } },
+    // Vertex { position: Vector3 { x: 0.07208125, y: 0.05260625, z: 0.}, uv: Vector2 {x: 0., y: 0.} },
+    // Vertex { position: Vector3 { x: 0.07208125, y: 0.02122288, z: -0.}, uv: Vector2 {x: 0.5, y: 0.} },
+    // Vertex { position: Vector3 { x: 0.06163125, y: -0.00225625, z: 0.}, uv: Vector2 {x: 1., y: -1.} },
+    // Vertex { position: Vector3 { x: 0.06163125, y: -0.00225625, z: 0.}, uv: Vector2 {x: 0., y: 0.} },
+    // Vertex { position: Vector3 { x: 0.05225625, y: -0.02303269, z: 0.}, uv: Vector2 {x: 0.5, y: 0.} },
+    // Vertex { position: Vector3 { x: 0.03604805, y: -0.03342441, z: 0.}, uv: Vector2 {x: 1., y: -1.} },
+    // Vertex { position: [0.03604805, -0.03342441, 0.], uv: [0., 0.] },
+    // Vertex { position: [0.01983577, -0.04381875, 0.], uv: [0.5, 0.] },
+    // Vertex { position: [-0.00320625, -0.04381875, 0.], uv: [1., -1.] },
+    // Vertex { position: [-0.00320625, -0.04381875, 0.], uv: [0., 0.] },
+    // Vertex { position: [-0.01792568, -0.04381875, 0.], uv: [0.5, 0.] },
+    // Vertex { position: [-0.0296541, -0.03820781, 0.], uv: [1., -1.] },
+    // Vertex { position: [-0.0296541, -0.03820781, 0.], uv: [0., 0.] },
+    // Vertex { position: [-0.04138548, -0.03259546, 0.], uv: [0.5, 0.] },
+    // Vertex { position: [-0.0501125, -0.021375, 0.], uv: [1., -1.] },
+    // Vertex { position: [-0.0501125, -0.021375, 0.], uv: [0., 0.] },
+    // Vertex { position: [-0.06756875, 0.00106875, -0.], uv: [0.5, 0.] },
+    // Vertex { position: [-0.06756875, 0.04405625, -0.], uv: [1., -1.] },
+    // Vertex { position: [-0.06756875, 0.04405625, -0.], uv: [0., 0.] },
+    // Vertex { position: [-0.06756875, 0.08057819, -0.], uv: [0.5, 0.] },
+    // Vertex { position: [-0.05878125, 0.10319375, -0.], uv: [1., -1.] },
+    // Vertex { position: [-0.05878125, 0.10319375, -0.], uv: [0., 0.] },
+    // Vertex { position: [-0.05047654, 0.1243229, -0.], uv: [0.5, 0.] },
+    // Vertex { position: [-0.03503125, 0.1348963, -0.], uv: [1., -1.] },
+    // Vertex { position: [-0.03503125, 0.1348963, -0.], uv: [0., 0.] },
+    // Vertex { position: [-0.01958733, 0.14546876, -0.], uv: [0.5, 0.] },
+    // Vertex { position: [0.00296875, 0.14546876, -0.], uv: [1., -1.] },
+    // Vertex { position: [0.00296875, 0.14546876, -0.], uv: [0., 0.] },
+    // Vertex { position: [0.01804629, 0.14546876, -0.], uv: [0.5, 0.] },
+    // Vertex { position: [0.03045937, 0.13976875, -0.], uv: [1., -1.] },
+
+    // Vertex { position: [0.03045937, 0.13976875, -0.], uv: [0., 0.] },
+    // Vertex { position: [0.04287856, 0.13406597, -0.], uv: [0.5, 0.] },
+    // Vertex { position: [0.05260625, 0.12266875, -0.], uv: [1., -1.] },
+    // Vertex { position: [0.05260625, 0.12266875, -0.], uv: [0., 0.] },
+    // Vertex { position: [0.07208125, 0.09985135, -0.], uv: [0.5, 0.] },
+    // Vertex { position: [0.07208125, 0.05260625, -0.], uv: [1., -1.] },
+    // Vertex { position: [0.07208125, 0.05260625, -0.], uv: [0., 0.] },
+    // Vertex { position: [0.07208125, 0.05260625, -0.], uv: [0.5, 0.] },
+    // Vertex { position: [-0.00486875, 0.18323125, -0.], uv: [1., -1.] },
+    //
+    // Vertex { position: [-0.00486875, 0.18323125, -0.], uv: [0., 0.] },
+    // Vertex { position: [-0.02695421, 0.18323125, -0.], uv: [0.5, 0.] },
+    // Vertex { position: [-0.04581152, 0.17426191, -0.], uv: [1., 1.] },
+    // Vertex { position: [-0.04581152, 0.17426191, -0.], uv: [0., 0.] },
+    // Vertex { position: [-0.06466535, 0.16529426, -0.], uv: [0.5, 0.] },
+    // Vertex { position: [-0.080275, 0.14736874, -0.], uv: [1., 1.] },
+    // Vertex { position: [-0.080275, 0.14736874, -0.], uv: [0., 0.] },
+    // Vertex { position: [-0.11150625, 0.11150405, -0.], uv: [0.5, 0.] },
+    // Vertex { position: [-0.11150625, 0.04761875, -0.], uv: [1., 1.] },
+    // Vertex { position: [-0.11150625, 0.04761875, -0.], uv: [0., 0.] },
+    // Vertex { position: [-0.11150625, 0.01377686, -0.], uv: [0.5, 0.] },
+    // Vertex { position: [-0.10375781, -0.01047598, 0.], uv: [1., 1.] },
+    // Vertex { position: [-0.10375781, -0.01047598, 0.], uv: [0., 0.] },
+    // Vertex { position: [-0.09601022, -0.03472614, 0.], uv: [0.5, 0.] },
+    // Vertex { position: [-0.0805125, -0.0494, 0.], uv: [1., 1.] },
+
+    // Vertex { position: [-0.0805125, -0.0494, 0.], uv: [0., 0.] },
+    // Vertex { position: [-0.04953443, -0.07873125, 0.], uv: [0.5, 0.] },
+    // Vertex { position: [-0.00819375, -0.07873125, 0.], uv: [1., 1.] },
+    // Vertex { position: [-0.00819375, -0.07873125, 0.], uv: [0., 0.] },
+    // Vertex { position: [0.02148037, -0.07873125, 0.], uv: [0.5, 0.] },
+    // Vertex { position: [0.03954375, -0.06923125, 0.], uv: [1., 1.] },
+    // Vertex { position: [0.03954375, -0.06923125, 0.], uv: [0., 0.] },
+    // Vertex { position: [0.05757167, -0.05974989, 0.], uv: [0.5, 0.] },
+    // Vertex { position: [0.07041875, -0.04025625, 0.], uv: [1., 1.] },
+    // Vertex { position: [0.07041875, -0.04025625, 0.], uv: [0., 0.] },
+    // Vertex { position: [0.07113131, -0.09276237, 0.], uv: [0.5, 0.] },
+    // Vertex { position: [0.06210625, -0.11316875, 0.], uv: [1., -1.] },
+    // Vertex { position: [0.06210625, -0.11316875, 0.], uv: [0., 0.] },
+    // Vertex { position: [0.05451531, -0.13050993, 0.], uv: [0.5, 0.] },
+    // Vertex { position: [0.03841934, -0.13917871, 0.], uv: [1., -1.] },
+    // Vertex { position: [0.03841934, -0.13917871, 0.], uv: [0., 0.] },
+    // Vertex { position: [0.0223303, -0.14784375, 0.], uv: [0.5, 0.] },
+    // Vertex { position: [-0.00225625, -0.14784375, 0.], uv: [1., -1.] },
+    // Vertex { position: [-0.00225625, -0.14784375, 0.], uv: [0., 0.] },
+    // Vertex { position: [-0.03338359, -0.14784375, 0.], uv: [0.5, 0.] },
+    // Vertex { position: [-0.04785625, -0.13359375, 0.], uv: [1., -1.] },
+    // Vertex { position: [-0.04785625, -0.13359375, 0.], uv: [0., 0.] },
+    // Vertex { position: [-0.05713685, -0.12431316, 0.], uv: [0.5, 0.] },
+    // Vertex { position: [-0.06020625, -0.10723125, 0.], uv: [1., -1.] },
+    // Vertex { position: [-0.06020625, -0.10723125, 0.], uv: [0., 0.] },
+    // Vertex { position: [-0.0819375, -0.10723125, 0.], uv: [0.5, 0.] },
+    // Vertex { position: [-0.10366875, -0.10723125, 0.], uv: [1., -1.] },
+    // Vertex { position: [-0.10366875, -0.10723125, 0.], uv: [0., 0.] },
+    // Vertex { position: [-0.10199864, -0.12682721, 0.], uv: [0.5, 0.] },
+    // Vertex { position: [-0.09416133, -0.14122714, 0.], uv: [1., 1.] },
+    // Vertex { position: [-0.09416133, -0.14122714, 0.], uv: [0., 0.] },
+    // Vertex { position: [-0.08632226, -0.15563034, 0.], uv: [0.5, 0.] },
+    // Vertex { position: [-0.07231875, -0.164825, 0.], uv: [1., 1.] },
+    // Vertex { position: [-0.07231875, -0.164825, 0.], uv: [0., 0.] },
+    // Vertex { position: [-0.04428599, -0.18323125, 0.], uv: [0.5, 0.] },
+    // Vertex { position: [-0.00320625, -0.18323125, 0.], uv: [1., 1.] },
+    // Vertex { position: [-0.00320625, -0.18323125, 0.], uv: [0., 0.] },
+    // Vertex { position: [0.03373603, -0.18323125, 0.], uv: [0.5, 0.] },
+    // Vertex { position: [0.05884805, -0.17029122, 0.], uv: [1., 1.] },
+    // Vertex { position: [0.05884805, -0.17029122, 0.], uv: [0., 0.] },
+    // Vertex { position: [0.08396496, -0.15734865, 0.], uv: [0.5, 0.] },
+    // Vertex { position: [0.09725625, -0.13145626, 0.], uv: [1., 1.] },
+    // Vertex { position: [0.09725625, -0.13145626, 0.], uv: [0., 0.] },
+    // Vertex { position: [0.11150625, -0.1034461, 0.], uv: [0.5, 0.] },
+    // Vertex { position: [0.11150625, -0.05498125, 0.], uv: [1., 1.] },
+    // Vertex { position: [0.11150625, -0.05498125, 0.], uv: [0., 0.] },
+    // Vertex { position: [0.11150625, 0.06068125, -0.], uv: [0.5, 0.] },
+    // Vertex { position: [0.11150625, 0.17634375, -0.], uv: [1., 1.] },
+    // Vertex { position: [0.11150625, 0.17634375, -0.], uv: [0., 0.] },
+    // Vertex { position: [0.09179375, 0.17634375, -0.], uv: [0.5, 0.] },
+    // Vertex { position: [0.07208125, 0.17634375, -0.], uv: [1., 1.] },
+    // Vertex { position: [0.07208125, 0.17634375, -0.], uv: [0., 0.] },
+    // Vertex { position: [0.07208125, 0.1603125, -0.], uv: [0.5, 0.] },
+    // Vertex { position: [0.07208125, 0.14428125, -0.], uv: [1., 1.] },
+    // Vertex { position: [0.07208125, 0.14428125, -0.], uv: [0., 0.] },
+    // Vertex { position: [0.05946112, 0.16020134, -0.], uv: [0.5, 0.] },
+    // Vertex { position: [0.04738125, 0.16850625, -0.], uv: [1., 1.] },
+    // Vertex { position: [0.04738125, 0.16850625, -0.], uv: [0., 0.] },
+    // Vertex { position: [0.02509356, 0.18323125, -0.], uv: [0.5, 0.] },
+    // Vertex { position: [-0.00486875, 0.18323125, -0.], uv: [1., 1.] },
 ];
+
+// #[rustfmt::skip]
+// const VERTICES: &[Vertex] = &[
+//    Vertex { position: [ 0. , 0., 0.], uv: [0., 0.] },
+//    Vertex { position: [ 0.5, 0., 0.], uv: [0.5, 0.] },
+//    Vertex { position: [ 1. , 1., 0.], uv: [1., -1.] },
+
+//    Vertex { position: [ -1. , 0., 0.], uv: [0., 0.] },
+//    Vertex { position: [ -0.5, 0., 0.], uv: [0.5, 0.] },
+//    Vertex { position: [ 0.  , 1., 0.], uv: [1., 1.] },
+//    Vertex { position: [ 1.        ,  0.        , 0.], uv: [0., 0.] },
+//    Vertex { position: [ 1.        ,  0.41421357, 0.], uv: [0.5, 0.] },
+//    Vertex { position: [ 0.70710677,  0.70710677, 0.], uv: [1., 1.] },
+//    Vertex { position: [ 0.70710677,  0.70710677, 0.], uv: [0., 0.] },
+//    Vertex { position: [ 0.41421357,  1.        , 0.], uv: [0.5, 0.] },
+//    Vertex { position: [ 0.        ,  1.        , 0.], uv: [1., 1.] },
+//    Vertex { position: [ 0.        ,  1.        , 0.], uv: [0., 0.] },
+//    Vertex { position: [-0.41421357,  1.        , 0.], uv: [0.5, 0.] },
+//    Vertex { position: [-0.70710677,  0.70710677, 0.], uv: [1., 1.] },
+//    Vertex { position: [-0.70710677,  0.70710677, 0.], uv: [0., 0.] },
+//    Vertex { position: [-1.        ,  0.41421357, 0.], uv: [0.5, 0.] },
+//    Vertex { position: [-1.        ,  0.        , 0.], uv: [1., 1.] },
+//    Vertex { position: [-1.        ,  0.        , 0.], uv: [0., 0.] },
+//    Vertex { position: [-1.        , -0.41421357, 0.], uv: [0.5, 0.] },
+//    Vertex { position: [-0.70710677, -0.70710677, 0.], uv: [1., 1.] },
+//    Vertex { position: [-0.70710677, -0.70710677, 0.], uv: [0., 0.] },
+//    Vertex { position: [-0.41421357, -1.        , 0.], uv: [0.5, 0.] },
+//    Vertex { position: [-0.        , -1.        , 0.], uv: [1., 1.] },
+//    Vertex { position: [-0.        , -1.        , 0.], uv: [0., 0.] },
+//    Vertex { position: [ 0.41421357, -1.        , 0.], uv: [0.5, 0.] },
+//    Vertex { position: [ 0.70710677, -0.70710677, 0.], uv: [1., 1.] },
+//    Vertex { position: [ 0.70710677, -0.70710677, 0.], uv: [0., 0.] },
+//    Vertex { position: [ 1.        , -0.41421357, 0.], uv: [0.5, 0.] },
+//    Vertex { position: [ 1.        ,  0.        , 0.], uv: [1., 1.] },
+// ];
 
 // const INDICES: &[u16] = &[0, 1, 2];
 
@@ -115,16 +260,17 @@ struct State<'a> {
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
-    pipeline: wgpu::RenderPipeline,
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
+    rpipeline: wgpu::RenderPipeline,
+    cpipeline: compute::ComputePipeline,
+    // vertex_buffer: wgpu::Buffer,
+    // index_buffer: wgpu::Buffer,
     camera: Camera,
     camera_uniform: CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     diffuse_bind_group: wgpu::BindGroup,
     depth_texture: Texture,
-    indices: Vec<u16>,
+    // indices: Vec<u32>,
     pub window: &'a Window,
 }
 
@@ -263,13 +409,17 @@ impl<'a> State<'a> {
         let swapchain_capabilities = surface.get_capabilities(&adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
 
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        let rpipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[Vertex::desc()],
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: 32,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x2],
+                }],
                 compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -291,33 +441,8 @@ impl<'a> State<'a> {
             cache: None,
         });
 
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(VERTICES),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-        // let indices = (0..VERTICES.len() as u16).collect::<Vec<_>>();
-        let indices = delaunator::triangulate(
-            &VERTICES
-                .iter()
-                .step_by(3)
-                .map(|v| delaunator::Point {
-                    x: v.position[0] as f64,
-                    y: v.position[1] as f64,
-                })
-                .collect::<Vec<_>>(),
-        )
-        .triangles
-        .into_iter()
-        .map(|i| i as u16 * 3)
-        .chain(0..VERTICES.len() as u16)
-        .collect::<Vec<_>>();
+        let cpipeline = compute::ComputePipeline::new(&device);
 
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(&indices),
-            usage: wgpu::BufferUsages::INDEX,
-        });
         let depth_texture = texture::Texture::create_depth_texture(
             &device,
             (config.width, config.height),
@@ -330,9 +455,10 @@ impl<'a> State<'a> {
             queue,
             config,
             size,
-            pipeline,
-            vertex_buffer,
-            index_buffer,
+            rpipeline,
+            cpipeline,
+            // vertex_buffer,
+            // index_buffer,
             camera,
             camera_uniform,
             camera_buffer,
@@ -340,7 +466,7 @@ impl<'a> State<'a> {
             diffuse_bind_group,
             depth_texture,
             window,
-            indices,
+            // indices,
         }
     }
 
@@ -354,6 +480,15 @@ impl<'a> State<'a> {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
+        {
+            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("Compute Pass"),
+                timestamp_writes: None,
+            });
+            cpass.set_pipeline(&self.cpipeline.pipeline);
+            cpass.set_bind_group(0, &self.cpipeline.bind_group, &[]);
+            cpass.dispatch_workgroups(((VERTICES.len() as f32) / 64.0).ceil() as u32, 1, 1);
+        }
         {
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
@@ -376,16 +511,41 @@ impl<'a> State<'a> {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-            rpass.set_pipeline(&self.pipeline);
+            rpass.set_pipeline(&self.rpipeline);
             rpass.set_bind_group(0, &self.camera_bind_group, &[]);
             rpass.set_bind_group(1, &self.diffuse_bind_group, &[]);
-            rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            rpass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            rpass.draw_indexed(0..self.indices.len() as u32, 0, 0..1);
+            rpass.set_vertex_buffer(0, self.cpipeline.vert_buff.slice(..));
+            rpass.set_index_buffer(self.cpipeline.ind_buff.slice(..), wgpu::IndexFormat::Uint32);
+            rpass.draw_indexed(0..self.cpipeline.ind_buff.size() as u32 / 4, 0, 0..1);
         }
-
+        // let staging_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+        //     label: None,
+        //     size: self.cpipeline.vert_buff.size(),
+        //     usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+        //     mapped_at_creation: false,
+        // });
+        // encoder.copy_buffer_to_buffer(
+        //     &self.cpipeline.vert_buff,
+        //     0,
+        //     &staging_buffer,
+        //     0,
+        //     self.cpipeline.vert_buff.size(),
+        // );
         self.queue.submit(Some(encoder.finish()));
         frame.present();
+
+        // let staging_buffer = staging_buffer.slice(..);
+        // staging_buffer.map_async(wgpu::MapMode::Read, |_| {});
+        // self.device.poll(wgpu::Maintain::Wait);
+        // let v = staging_buffer.get_mapped_range();
+        // let buffer = StorageBuffer::new(v.as_ref());
+        // let mut p: Vec<Vertex> = Vec::new();
+        // buffer.read(&mut p).unwrap();
+
+        // // let v: Vec<Vertex> = bytemuck::cast_slice(&v).to_vec();
+        // println!("{:#?}", p);
+        // // staging_buffer.;
+        // panic!("");
 
         Ok(())
     }
