@@ -78,7 +78,7 @@ impl Texture {
         }
     }
 
-    pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+    pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth24PlusStencil8;
 
     #[allow(unused)]
     pub fn create_depth_texture(device: &wgpu::Device, size: (u32, u32), label: &str) -> Self {

@@ -5,6 +5,7 @@ mod texture;
 use bytemuck::{Pod, Zeroable};
 use camera::{Camera, CameraUniform};
 use cgmath::{Vector2, Vector3};
+use compute::POS;
 use encase::{ArrayLength, ShaderType, StorageBuffer};
 // use compute::Vertex;
 use texture::Texture;
@@ -42,17 +43,19 @@ use winit::{
 //         buffer.into_inner()
 //     }
 // }
-
+pub const VERTEX_STRUCT_SIZE: u64 = 32;
 #[rustfmt::skip]
-const VERTICES: [Vector3<f32>; 5] = [
-    // Vector3 { x: 0., y: 0., z: 0.},    
-    // Vector3 { x: 0.5 , y: 0., z: 0.},
-    // Vector3 { x: 1., y: 1., z: 0.},
-    Vector3 { x: 1., y: 0., z: 0.},    
-    Vector3 { x: 1. , y: 0.41421357, z: 0.},
-    Vector3 { x: 0.70710677, y: 0.70710677, z: 0.},
-    Vector3 { x: 0.41421357, y: 1., z: 0.},
-    Vector3 { x: 0., y: 1., z: 0.},
+// const VERTICES: [Vector3<f32>; 9] = [
+//     Vector3 { x: 0.5, y: 0.5, z: 0.},    
+//     Vector3 { x: 0.0, y: 1.0, z: 0.},
+//     Vector3 { x: -0.5, y: 0.5, z: 0.},
+//     Vector3 { x: -0.4, y: 0.0, z: 0.},
+//     Vector3 { x: -0.5, y: -0.5, z: 0.},
+//     Vector3 { x: 0.0, y: 0.0, z: 0.},
+//     Vector3 { x: 0.5, y: -0.5, z: 0.},
+//     Vector3 { x: 0.5, y: 0.0, z: 0.},
+//     Vector3 { x: 0.5, y: 0.5, z: 0.},
+
     // Vertex{ position: Vector3 { x: 1., y: 1.5, z: 0. }, uv: Vector2 { x: 14., y: 15. } },
     // Vertex{ position: Vector3 { x: 0., y: 2., z: 0. }, uv: Vector2 { x: 14., y: 15. } },
     // Vertex{ position: Vector3 { x: 16., y: 17., z: 18. }, uv: Vector2 { x: 19., y: 20. } },
@@ -174,7 +177,7 @@ const VERTICES: [Vector3<f32>; 5] = [
     // Vertex { position: [0.04738125, 0.16850625, -0.], uv: [0., 0.] },
     // Vertex { position: [0.02509356, 0.18323125, -0.], uv: [0.5, 0.] },
     // Vertex { position: [-0.00486875, 0.18323125, -0.], uv: [1., 1.] },
-];
+// ];
 
 // #[rustfmt::skip]
 // const VERTICES: &[Vertex] = &[
@@ -261,6 +264,7 @@ struct State<'a> {
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     rpipeline: wgpu::RenderPipeline,
+    spipeline: wgpu::RenderPipeline,
     cpipeline: compute::ComputePipeline,
     // vertex_buffer: wgpu::Buffer,
     // index_buffer: wgpu::Buffer,
@@ -312,9 +316,12 @@ impl<'a> State<'a> {
         //     queue,
         //     adapter,
         // } = DeviceQueue::new(Some(&surface)).await;
-        let config = surface
+        let mut config = surface
             .get_default_config(&adapter, size.width, size.height)
             .unwrap();
+        // Not all platforms (WebGPU) support sRGB swapchains
+        let view_format = config.format.add_srgb_suffix();
+        config.view_formats.push(view_format);
         surface.configure(&device, &config);
 
         let diffuse_texture = texture::Texture::from_bytes(
@@ -406,9 +413,57 @@ impl<'a> State<'a> {
         });
 
         let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
-        let swapchain_capabilities = surface.get_capabilities(&adapter);
-        let swapchain_format = swapchain_capabilities.formats[0];
-
+        let stencil_shader = device.create_shader_module(wgpu::include_wgsl!("stencil.wgsl"));
+        // let swapchain_capabilities = surface.get_capabilities(&adapter);
+        // let swapchain_format = swapchain_capabilities.formats[0];
+        let stencil_s = wgpu::StencilFaceState {
+            compare: wgpu::CompareFunction::Always,
+            fail_op: wgpu::StencilOperation::Keep,
+            depth_fail_op: wgpu::StencilOperation::Invert,
+            pass_op: wgpu::StencilOperation::Invert,
+        };
+        let stencil_r = wgpu::StencilFaceState {
+            compare: wgpu::CompareFunction::Equal,
+            fail_op: wgpu::StencilOperation::Keep,
+            depth_fail_op: wgpu::StencilOperation::Keep,
+            pass_op: wgpu::StencilOperation::Keep,
+        };
+        let spipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Stencil Pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &stencil_shader,
+                entry_point: "vs_main",
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: VERTEX_STRUCT_SIZE,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x2],
+                }],
+                compilation_options: Default::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &stencil_shader,
+                entry_point: "fs_main",
+                compilation_options: Default::default(),
+                targets: &[],
+            }),
+            primitive: wgpu::PrimitiveState::default(),
+            multisample: wgpu::MultisampleState::default(),
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth24PlusStencil8,
+                depth_write_enabled: false,
+                depth_compare: wgpu::CompareFunction::Always,
+                stencil: wgpu::StencilState {
+                    front: stencil_s,
+                    back: stencil_s,
+                    read_mask: 1,
+                    write_mask: 1,
+                },
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multiview: None,
+            cache: None,
+        });
         let rpipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&pipeline_layout),
@@ -416,7 +471,7 @@ impl<'a> State<'a> {
                 module: &shader,
                 entry_point: "vs_main",
                 buffers: &[wgpu::VertexBufferLayout {
-                    array_stride: 32,
+                    array_stride: VERTEX_STRUCT_SIZE,
                     step_mode: wgpu::VertexStepMode::Vertex,
                     attributes: &wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x2],
                 }],
@@ -426,15 +481,35 @@ impl<'a> State<'a> {
                 module: &shader,
                 entry_point: "fs_main",
                 compilation_options: Default::default(),
-                targets: &[Some(swapchain_format.into())],
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: config.view_formats[0],
+                    blend: Some(wgpu::BlendState {
+                        color: wgpu::BlendComponent {
+                            src_factor: wgpu::BlendFactor::SrcAlpha,
+                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                            operation: wgpu::BlendOperation::Add,
+                        },
+                        alpha: wgpu::BlendComponent {
+                            src_factor: wgpu::BlendFactor::One,
+                            dst_factor: wgpu::BlendFactor::One,
+                            operation: wgpu::BlendOperation::Add,
+                        },
+                    }),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
             }),
             primitive: wgpu::PrimitiveState::default(),
             multisample: wgpu::MultisampleState::default(),
             depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Depth32Float,
+                format: wgpu::TextureFormat::Depth24PlusStencil8,
                 depth_write_enabled: true,
                 depth_compare: wgpu::CompareFunction::Less,
-                stencil: wgpu::StencilState::default(),
+                stencil: wgpu::StencilState {
+                    front: stencil_r,
+                    back: stencil_r,
+                    read_mask: 1,
+                    write_mask: 1,
+                },
                 bias: wgpu::DepthBiasState::default(),
             }),
             multiview: None,
@@ -456,6 +531,7 @@ impl<'a> State<'a> {
             config,
             size,
             rpipeline,
+            spipeline,
             cpipeline,
             // vertex_buffer,
             // index_buffer,
@@ -487,7 +563,30 @@ impl<'a> State<'a> {
             });
             cpass.set_pipeline(&self.cpipeline.pipeline);
             cpass.set_bind_group(0, &self.cpipeline.bind_group, &[]);
-            cpass.dispatch_workgroups(((VERTICES.len() as f32) / 64.0).ceil() as u32, 1, 1);
+            cpass.dispatch_workgroups((((POS.len() / 2) as f32) / 64.0).ceil() as u32, 1, 1);
+        }
+        let indices = self.cpipeline.ind_buff.size() as u32 / 4;
+        {
+            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Stencil Pass"),
+                color_attachments: &[],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_texture.view,
+                    depth_ops: None,
+                    stencil_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            rpass.set_pipeline(&self.spipeline);
+            rpass.set_bind_group(0, &self.camera_bind_group, &[]);
+            rpass.set_bind_group(1, &self.diffuse_bind_group, &[]);
+            rpass.set_vertex_buffer(0, self.cpipeline.vert_buff.slice(..));
+            rpass.set_index_buffer(self.cpipeline.ind_buff.slice(..), wgpu::IndexFormat::Uint32);
+            rpass.draw_indexed(0..indices, 0, 0..1);
         }
         {
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -516,22 +615,14 @@ impl<'a> State<'a> {
             rpass.set_bind_group(1, &self.diffuse_bind_group, &[]);
             rpass.set_vertex_buffer(0, self.cpipeline.vert_buff.slice(..));
             rpass.set_index_buffer(self.cpipeline.ind_buff.slice(..), wgpu::IndexFormat::Uint32);
-            rpass.draw_indexed(0..self.cpipeline.ind_buff.size() as u32 / 4, 0, 0..1);
+            rpass.set_stencil_reference(1);
+            rpass.draw_indexed(0..indices, 0, 0..1);
+            // rpass.set_stencil_reference(0);
+            // rpass.draw_indexed(indices / 2..indices / 2 + 51, 0, 0..1);
+            // rpass.draw_indexed(0..indices / 2, 0, 0..1);
         }
-        // let staging_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-        //     label: None,
-        //     size: self.cpipeline.vert_buff.size(),
-        //     usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
-        //     mapped_at_creation: false,
-        // });
-        // encoder.copy_buffer_to_buffer(
-        //     &self.cpipeline.vert_buff,
-        //     0,
-        //     &staging_buffer,
-        //     0,
-        //     self.cpipeline.vert_buff.size(),
-        // );
         self.queue.submit(Some(encoder.finish()));
+
         frame.present();
 
         // let staging_buffer = staging_buffer.slice(..);
@@ -539,13 +630,13 @@ impl<'a> State<'a> {
         // self.device.poll(wgpu::Maintain::Wait);
         // let v = staging_buffer.get_mapped_range();
         // let buffer = StorageBuffer::new(v.as_ref());
-        // let mut p: Vec<Vertex> = Vec::new();
+        // let mut p: Vec<u32> = Vec::new();
         // buffer.read(&mut p).unwrap();
 
         // // let v: Vec<Vertex> = bytemuck::cast_slice(&v).to_vec();
         // println!("{:#?}", p);
         // // staging_buffer.;
-        // panic!("");
+        // // panic!("");
 
         Ok(())
     }
