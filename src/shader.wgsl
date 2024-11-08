@@ -36,9 +36,13 @@ fn vs_main(
 }
 
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    if (sign(in.uv.y) * in.uv.x * in.uv.x > in.uv.y) {
-        // discard;
+fn stencil(in: VertexOutput) {
+    if (in.uv.x * in.uv.x > in.uv.y) {
+        discard;
     }
+}
+
+@fragment
+fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     return vec4<f32>(in.col);
 }

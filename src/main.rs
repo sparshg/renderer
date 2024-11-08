@@ -1,12 +1,10 @@
 mod camera;
 mod compute;
+mod renderer;
 mod texture;
-
-use bytemuck::{Pod, Zeroable};
 use camera::{Camera, CameraUniform};
-use cgmath::{Vector2, Vector3};
 use compute::POS;
-use encase::{ArrayLength, ShaderType, StorageBuffer};
+use encase::ShaderType;
 // use compute::Vertex;
 use texture::Texture;
 use wgpu::util::DeviceExt;
@@ -16,246 +14,7 @@ use winit::{
     window::Window,
 };
 
-// #[derive(Copy, Clone, Debug, ShaderType)]
-// pub struct Vertex {
-//     position: Vector3<f32>,
-//     uv: Vector2<f32>,
-// }
-
-// impl Vertex {
-//     const ATTRIBS: [wgpu::VertexAttribute; 2] =
-//         wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2];
-
-//     pub fn desc() -> wgpu::VertexBufferLayout<'static> {
-//         wgpu::VertexBufferLayout {
-//             array_stride: 24,
-//             step_mode: wgpu::VertexStepMode::Vertex,
-//             attributes: &Self::ATTRIBS,
-//         }
-//     }
-// }
-
-// impl Points {
-//     fn as_wgsl_bytes(&self) -> Vec<u8> {
-//         let mut buffer = encase::StorageBuffer::new(Vec::new());
-//         buffer.write(self).unwrap();
-
-//         buffer.into_inner()
-//     }
-// }
 pub const VERTEX_STRUCT_SIZE: u64 = 32;
-#[rustfmt::skip]
-// const VERTICES: [Vector3<f32>; 9] = [
-//     Vector3 { x: 0.5, y: 0.5, z: 0.},    
-//     Vector3 { x: 0.0, y: 1.0, z: 0.},
-//     Vector3 { x: -0.5, y: 0.5, z: 0.},
-//     Vector3 { x: -0.4, y: 0.0, z: 0.},
-//     Vector3 { x: -0.5, y: -0.5, z: 0.},
-//     Vector3 { x: 0.0, y: 0.0, z: 0.},
-//     Vector3 { x: 0.5, y: -0.5, z: 0.},
-//     Vector3 { x: 0.5, y: 0.0, z: 0.},
-//     Vector3 { x: 0.5, y: 0.5, z: 0.},
-
-    // Vertex{ position: Vector3 { x: 1., y: 1.5, z: 0. }, uv: Vector2 { x: 14., y: 15. } },
-    // Vertex{ position: Vector3 { x: 0., y: 2., z: 0. }, uv: Vector2 { x: 14., y: 15. } },
-    // Vertex{ position: Vector3 { x: 16., y: 17., z: 18. }, uv: Vector2 { x: 19., y: 20. } },
-    // Vertex{ position: Vector3 { x: 21., y: 22., z: 23. }, uv: Vector2 { x: 24., y: 25. } },
-    // Vertex { position: Vector3 { x: 0.07208125, y: 0.05260625, z: 0.}, uv: Vector2 {x: 0., y: 0.} },
-    // Vertex { position: Vector3 { x: 0.07208125, y: 0.02122288, z: -0.}, uv: Vector2 {x: 0.5, y: 0.} },
-    // Vertex { position: Vector3 { x: 0.06163125, y: -0.00225625, z: 0.}, uv: Vector2 {x: 1., y: -1.} },
-    // Vertex { position: Vector3 { x: 0.06163125, y: -0.00225625, z: 0.}, uv: Vector2 {x: 0., y: 0.} },
-    // Vertex { position: Vector3 { x: 0.05225625, y: -0.02303269, z: 0.}, uv: Vector2 {x: 0.5, y: 0.} },
-    // Vertex { position: Vector3 { x: 0.03604805, y: -0.03342441, z: 0.}, uv: Vector2 {x: 1., y: -1.} },
-    // Vertex { position: [0.03604805, -0.03342441, 0.], uv: [0., 0.] },
-    // Vertex { position: [0.01983577, -0.04381875, 0.], uv: [0.5, 0.] },
-    // Vertex { position: [-0.00320625, -0.04381875, 0.], uv: [1., -1.] },
-    // Vertex { position: [-0.00320625, -0.04381875, 0.], uv: [0., 0.] },
-    // Vertex { position: [-0.01792568, -0.04381875, 0.], uv: [0.5, 0.] },
-    // Vertex { position: [-0.0296541, -0.03820781, 0.], uv: [1., -1.] },
-    // Vertex { position: [-0.0296541, -0.03820781, 0.], uv: [0., 0.] },
-    // Vertex { position: [-0.04138548, -0.03259546, 0.], uv: [0.5, 0.] },
-    // Vertex { position: [-0.0501125, -0.021375, 0.], uv: [1., -1.] },
-    // Vertex { position: [-0.0501125, -0.021375, 0.], uv: [0., 0.] },
-    // Vertex { position: [-0.06756875, 0.00106875, -0.], uv: [0.5, 0.] },
-    // Vertex { position: [-0.06756875, 0.04405625, -0.], uv: [1., -1.] },
-    // Vertex { position: [-0.06756875, 0.04405625, -0.], uv: [0., 0.] },
-    // Vertex { position: [-0.06756875, 0.08057819, -0.], uv: [0.5, 0.] },
-    // Vertex { position: [-0.05878125, 0.10319375, -0.], uv: [1., -1.] },
-    // Vertex { position: [-0.05878125, 0.10319375, -0.], uv: [0., 0.] },
-    // Vertex { position: [-0.05047654, 0.1243229, -0.], uv: [0.5, 0.] },
-    // Vertex { position: [-0.03503125, 0.1348963, -0.], uv: [1., -1.] },
-    // Vertex { position: [-0.03503125, 0.1348963, -0.], uv: [0., 0.] },
-    // Vertex { position: [-0.01958733, 0.14546876, -0.], uv: [0.5, 0.] },
-    // Vertex { position: [0.00296875, 0.14546876, -0.], uv: [1., -1.] },
-    // Vertex { position: [0.00296875, 0.14546876, -0.], uv: [0., 0.] },
-    // Vertex { position: [0.01804629, 0.14546876, -0.], uv: [0.5, 0.] },
-    // Vertex { position: [0.03045937, 0.13976875, -0.], uv: [1., -1.] },
-
-    // Vertex { position: [0.03045937, 0.13976875, -0.], uv: [0., 0.] },
-    // Vertex { position: [0.04287856, 0.13406597, -0.], uv: [0.5, 0.] },
-    // Vertex { position: [0.05260625, 0.12266875, -0.], uv: [1., -1.] },
-    // Vertex { position: [0.05260625, 0.12266875, -0.], uv: [0., 0.] },
-    // Vertex { position: [0.07208125, 0.09985135, -0.], uv: [0.5, 0.] },
-    // Vertex { position: [0.07208125, 0.05260625, -0.], uv: [1., -1.] },
-    // Vertex { position: [0.07208125, 0.05260625, -0.], uv: [0., 0.] },
-    // Vertex { position: [0.07208125, 0.05260625, -0.], uv: [0.5, 0.] },
-    // Vertex { position: [-0.00486875, 0.18323125, -0.], uv: [1., -1.] },
-    //
-    // Vertex { position: [-0.00486875, 0.18323125, -0.], uv: [0., 0.] },
-    // Vertex { position: [-0.02695421, 0.18323125, -0.], uv: [0.5, 0.] },
-    // Vertex { position: [-0.04581152, 0.17426191, -0.], uv: [1., 1.] },
-    // Vertex { position: [-0.04581152, 0.17426191, -0.], uv: [0., 0.] },
-    // Vertex { position: [-0.06466535, 0.16529426, -0.], uv: [0.5, 0.] },
-    // Vertex { position: [-0.080275, 0.14736874, -0.], uv: [1., 1.] },
-    // Vertex { position: [-0.080275, 0.14736874, -0.], uv: [0., 0.] },
-    // Vertex { position: [-0.11150625, 0.11150405, -0.], uv: [0.5, 0.] },
-    // Vertex { position: [-0.11150625, 0.04761875, -0.], uv: [1., 1.] },
-    // Vertex { position: [-0.11150625, 0.04761875, -0.], uv: [0., 0.] },
-    // Vertex { position: [-0.11150625, 0.01377686, -0.], uv: [0.5, 0.] },
-    // Vertex { position: [-0.10375781, -0.01047598, 0.], uv: [1., 1.] },
-    // Vertex { position: [-0.10375781, -0.01047598, 0.], uv: [0., 0.] },
-    // Vertex { position: [-0.09601022, -0.03472614, 0.], uv: [0.5, 0.] },
-    // Vertex { position: [-0.0805125, -0.0494, 0.], uv: [1., 1.] },
-
-    // Vertex { position: [-0.0805125, -0.0494, 0.], uv: [0., 0.] },
-    // Vertex { position: [-0.04953443, -0.07873125, 0.], uv: [0.5, 0.] },
-    // Vertex { position: [-0.00819375, -0.07873125, 0.], uv: [1., 1.] },
-    // Vertex { position: [-0.00819375, -0.07873125, 0.], uv: [0., 0.] },
-    // Vertex { position: [0.02148037, -0.07873125, 0.], uv: [0.5, 0.] },
-    // Vertex { position: [0.03954375, -0.06923125, 0.], uv: [1., 1.] },
-    // Vertex { position: [0.03954375, -0.06923125, 0.], uv: [0., 0.] },
-    // Vertex { position: [0.05757167, -0.05974989, 0.], uv: [0.5, 0.] },
-    // Vertex { position: [0.07041875, -0.04025625, 0.], uv: [1., 1.] },
-    // Vertex { position: [0.07041875, -0.04025625, 0.], uv: [0., 0.] },
-    // Vertex { position: [0.07113131, -0.09276237, 0.], uv: [0.5, 0.] },
-    // Vertex { position: [0.06210625, -0.11316875, 0.], uv: [1., -1.] },
-    // Vertex { position: [0.06210625, -0.11316875, 0.], uv: [0., 0.] },
-    // Vertex { position: [0.05451531, -0.13050993, 0.], uv: [0.5, 0.] },
-    // Vertex { position: [0.03841934, -0.13917871, 0.], uv: [1., -1.] },
-    // Vertex { position: [0.03841934, -0.13917871, 0.], uv: [0., 0.] },
-    // Vertex { position: [0.0223303, -0.14784375, 0.], uv: [0.5, 0.] },
-    // Vertex { position: [-0.00225625, -0.14784375, 0.], uv: [1., -1.] },
-    // Vertex { position: [-0.00225625, -0.14784375, 0.], uv: [0., 0.] },
-    // Vertex { position: [-0.03338359, -0.14784375, 0.], uv: [0.5, 0.] },
-    // Vertex { position: [-0.04785625, -0.13359375, 0.], uv: [1., -1.] },
-    // Vertex { position: [-0.04785625, -0.13359375, 0.], uv: [0., 0.] },
-    // Vertex { position: [-0.05713685, -0.12431316, 0.], uv: [0.5, 0.] },
-    // Vertex { position: [-0.06020625, -0.10723125, 0.], uv: [1., -1.] },
-    // Vertex { position: [-0.06020625, -0.10723125, 0.], uv: [0., 0.] },
-    // Vertex { position: [-0.0819375, -0.10723125, 0.], uv: [0.5, 0.] },
-    // Vertex { position: [-0.10366875, -0.10723125, 0.], uv: [1., -1.] },
-    // Vertex { position: [-0.10366875, -0.10723125, 0.], uv: [0., 0.] },
-    // Vertex { position: [-0.10199864, -0.12682721, 0.], uv: [0.5, 0.] },
-    // Vertex { position: [-0.09416133, -0.14122714, 0.], uv: [1., 1.] },
-    // Vertex { position: [-0.09416133, -0.14122714, 0.], uv: [0., 0.] },
-    // Vertex { position: [-0.08632226, -0.15563034, 0.], uv: [0.5, 0.] },
-    // Vertex { position: [-0.07231875, -0.164825, 0.], uv: [1., 1.] },
-    // Vertex { position: [-0.07231875, -0.164825, 0.], uv: [0., 0.] },
-    // Vertex { position: [-0.04428599, -0.18323125, 0.], uv: [0.5, 0.] },
-    // Vertex { position: [-0.00320625, -0.18323125, 0.], uv: [1., 1.] },
-    // Vertex { position: [-0.00320625, -0.18323125, 0.], uv: [0., 0.] },
-    // Vertex { position: [0.03373603, -0.18323125, 0.], uv: [0.5, 0.] },
-    // Vertex { position: [0.05884805, -0.17029122, 0.], uv: [1., 1.] },
-    // Vertex { position: [0.05884805, -0.17029122, 0.], uv: [0., 0.] },
-    // Vertex { position: [0.08396496, -0.15734865, 0.], uv: [0.5, 0.] },
-    // Vertex { position: [0.09725625, -0.13145626, 0.], uv: [1., 1.] },
-    // Vertex { position: [0.09725625, -0.13145626, 0.], uv: [0., 0.] },
-    // Vertex { position: [0.11150625, -0.1034461, 0.], uv: [0.5, 0.] },
-    // Vertex { position: [0.11150625, -0.05498125, 0.], uv: [1., 1.] },
-    // Vertex { position: [0.11150625, -0.05498125, 0.], uv: [0., 0.] },
-    // Vertex { position: [0.11150625, 0.06068125, -0.], uv: [0.5, 0.] },
-    // Vertex { position: [0.11150625, 0.17634375, -0.], uv: [1., 1.] },
-    // Vertex { position: [0.11150625, 0.17634375, -0.], uv: [0., 0.] },
-    // Vertex { position: [0.09179375, 0.17634375, -0.], uv: [0.5, 0.] },
-    // Vertex { position: [0.07208125, 0.17634375, -0.], uv: [1., 1.] },
-    // Vertex { position: [0.07208125, 0.17634375, -0.], uv: [0., 0.] },
-    // Vertex { position: [0.07208125, 0.1603125, -0.], uv: [0.5, 0.] },
-    // Vertex { position: [0.07208125, 0.14428125, -0.], uv: [1., 1.] },
-    // Vertex { position: [0.07208125, 0.14428125, -0.], uv: [0., 0.] },
-    // Vertex { position: [0.05946112, 0.16020134, -0.], uv: [0.5, 0.] },
-    // Vertex { position: [0.04738125, 0.16850625, -0.], uv: [1., 1.] },
-    // Vertex { position: [0.04738125, 0.16850625, -0.], uv: [0., 0.] },
-    // Vertex { position: [0.02509356, 0.18323125, -0.], uv: [0.5, 0.] },
-    // Vertex { position: [-0.00486875, 0.18323125, -0.], uv: [1., 1.] },
-// ];
-
-// #[rustfmt::skip]
-// const VERTICES: &[Vertex] = &[
-//    Vertex { position: [ 0. , 0., 0.], uv: [0., 0.] },
-//    Vertex { position: [ 0.5, 0., 0.], uv: [0.5, 0.] },
-//    Vertex { position: [ 1. , 1., 0.], uv: [1., -1.] },
-
-//    Vertex { position: [ -1. , 0., 0.], uv: [0., 0.] },
-//    Vertex { position: [ -0.5, 0., 0.], uv: [0.5, 0.] },
-//    Vertex { position: [ 0.  , 1., 0.], uv: [1., 1.] },
-//    Vertex { position: [ 1.        ,  0.        , 0.], uv: [0., 0.] },
-//    Vertex { position: [ 1.        ,  0.41421357, 0.], uv: [0.5, 0.] },
-//    Vertex { position: [ 0.70710677,  0.70710677, 0.], uv: [1., 1.] },
-//    Vertex { position: [ 0.70710677,  0.70710677, 0.], uv: [0., 0.] },
-//    Vertex { position: [ 0.41421357,  1.        , 0.], uv: [0.5, 0.] },
-//    Vertex { position: [ 0.        ,  1.        , 0.], uv: [1., 1.] },
-//    Vertex { position: [ 0.        ,  1.        , 0.], uv: [0., 0.] },
-//    Vertex { position: [-0.41421357,  1.        , 0.], uv: [0.5, 0.] },
-//    Vertex { position: [-0.70710677,  0.70710677, 0.], uv: [1., 1.] },
-//    Vertex { position: [-0.70710677,  0.70710677, 0.], uv: [0., 0.] },
-//    Vertex { position: [-1.        ,  0.41421357, 0.], uv: [0.5, 0.] },
-//    Vertex { position: [-1.        ,  0.        , 0.], uv: [1., 1.] },
-//    Vertex { position: [-1.        ,  0.        , 0.], uv: [0., 0.] },
-//    Vertex { position: [-1.        , -0.41421357, 0.], uv: [0.5, 0.] },
-//    Vertex { position: [-0.70710677, -0.70710677, 0.], uv: [1., 1.] },
-//    Vertex { position: [-0.70710677, -0.70710677, 0.], uv: [0., 0.] },
-//    Vertex { position: [-0.41421357, -1.        , 0.], uv: [0.5, 0.] },
-//    Vertex { position: [-0.        , -1.        , 0.], uv: [1., 1.] },
-//    Vertex { position: [-0.        , -1.        , 0.], uv: [0., 0.] },
-//    Vertex { position: [ 0.41421357, -1.        , 0.], uv: [0.5, 0.] },
-//    Vertex { position: [ 0.70710677, -0.70710677, 0.], uv: [1., 1.] },
-//    Vertex { position: [ 0.70710677, -0.70710677, 0.], uv: [0., 0.] },
-//    Vertex { position: [ 1.        , -0.41421357, 0.], uv: [0.5, 0.] },
-//    Vertex { position: [ 1.        ,  0.        , 0.], uv: [1., 1.] },
-// ];
-
-// const INDICES: &[u16] = &[0, 1, 2];
-
-struct DeviceQueue {
-    pub device: wgpu::Device,
-    pub queue: wgpu::Queue,
-    adapter: wgpu::Adapter,
-}
-
-impl DeviceQueue {
-    async fn new(compatible_surface: Option<&wgpu::Surface<'_>>) -> Self {
-        let instance = wgpu::Instance::default();
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::default(),
-                force_fallback_adapter: false,
-                // Request an adapter which can render to our surface
-                compatible_surface: compatible_surface,
-            })
-            .await
-            .expect("Failed to find an appropriate adapter");
-
-        // Create the logical device and command queue
-        let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: None,
-                    required_features: wgpu::Features::empty(),
-                    required_limits: wgpu::Limits::default().using_resolution(adapter.limits()),
-                    memory_hints: wgpu::MemoryHints::default(),
-                },
-                None,
-            )
-            .await
-            .expect("Failed to create device");
-
-        Self {
-            device,
-            queue,
-            adapter,
-        }
-    }
-}
 
 struct State<'a> {
     surface: wgpu::Surface<'a>,
@@ -298,6 +57,7 @@ impl<'a> State<'a> {
             .expect("Failed to find an appropriate adapter");
 
         // Create the logical device and command queue
+
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
@@ -413,7 +173,6 @@ impl<'a> State<'a> {
         });
 
         let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
-        let stencil_shader = device.create_shader_module(wgpu::include_wgsl!("stencil.wgsl"));
         // let swapchain_capabilities = surface.get_capabilities(&adapter);
         // let swapchain_format = swapchain_capabilities.formats[0];
         let stencil_s = wgpu::StencilFaceState {
@@ -432,7 +191,7 @@ impl<'a> State<'a> {
             label: Some("Stencil Pipeline"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &stencil_shader,
+                module: &shader,
                 entry_point: "vs_main",
                 buffers: &[wgpu::VertexBufferLayout {
                     array_stride: VERTEX_STRUCT_SIZE,
@@ -442,8 +201,8 @@ impl<'a> State<'a> {
                 compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
-                module: &stencil_shader,
-                entry_point: "fs_main",
+                module: &shader,
+                entry_point: "stencil",
                 compilation_options: Default::default(),
                 targets: &[],
             }),
@@ -490,7 +249,7 @@ impl<'a> State<'a> {
                             operation: wgpu::BlendOperation::Add,
                         },
                         alpha: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::One,
+                            src_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
                             dst_factor: wgpu::BlendFactor::One,
                             operation: wgpu::BlendOperation::Add,
                         },
@@ -617,9 +376,6 @@ impl<'a> State<'a> {
             rpass.set_index_buffer(self.cpipeline.ind_buff.slice(..), wgpu::IndexFormat::Uint32);
             rpass.set_stencil_reference(1);
             rpass.draw_indexed(0..indices, 0, 0..1);
-            // rpass.set_stencil_reference(0);
-            // rpass.draw_indexed(indices / 2..indices / 2 + 51, 0, 0..1);
-            // rpass.draw_indexed(0..indices / 2, 0, 0..1);
         }
         self.queue.submit(Some(encoder.finish()));
 

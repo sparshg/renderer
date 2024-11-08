@@ -35,7 +35,7 @@ pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
 impl Camera {
     pub fn new() -> Self {
         Camera {
-            eye: Point3::new(0.0, 0.0, -0.4),
+            eye: Point3::new(0.0, 0.0, -1.),
             forward: Vector3::new(0.0, 0.0, 1.0),
             up: Vector3::unit_y(),
             aspect: 1.0,
