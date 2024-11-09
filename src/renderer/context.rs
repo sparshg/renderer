@@ -1,10 +1,10 @@
 use winit::dpi::PhysicalSize;
 
-pub(in crate::renderer) struct Context {
-    pub instance: wgpu::Instance,
-    pub adapter: wgpu::Adapter,
-    pub device: wgpu::Device,
-    pub queue: wgpu::Queue,
+pub struct Context {
+    instance: wgpu::Instance,
+    adapter: wgpu::Adapter,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
 }
 
 impl Context {
@@ -38,11 +38,32 @@ impl Context {
             queue,
         }
     }
+
+    pub fn attach_window(self, window: &winit::window::Window) -> SurfaceContext<'_> {
+        let mut size = window.inner_size();
+        size.width = size.width.max(1);
+        size.height = size.height.max(1);
+        let surface = self.instance.create_surface(window).unwrap();
+
+        let mut config = surface
+            .get_default_config(&self.adapter, size.width, size.height)
+            .expect("Surface isn't supported by the adapter.");
+
+        // Not all platforms (WebGPU) support sRGB swapchains, so we need to use view formats
+        let view_format = config.format.add_srgb_suffix();
+        config.view_formats.push(view_format);
+
+        surface.configure(&self.device, &config);
+        SurfaceContext {
+            device: self.device,
+            queue: self.queue,
+            surface,
+            config,
+        }
+    }
 }
 
-pub(in crate::renderer) struct SurfaceContext<'a> {
-    pub instance: wgpu::Instance,
-    pub adapter: wgpu::Adapter,
+pub struct SurfaceContext<'a> {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub surface: wgpu::Surface<'a>,
@@ -50,31 +71,6 @@ pub(in crate::renderer) struct SurfaceContext<'a> {
 }
 
 impl<'a> SurfaceContext<'a> {
-    pub async fn attach_window(ctx: Context, window: &'a winit::window::Window) -> Self {
-        let mut size = window.inner_size();
-        size.width = size.width.max(1);
-        size.height = size.height.max(1);
-        let surface = ctx.instance.create_surface(window).unwrap();
-
-        let mut config = surface
-            .get_default_config(&ctx.adapter, size.width, size.height)
-            .expect("Surface isn't supported by the adapter.");
-
-        // Not all platforms (WebGPU) support sRGB swapchains, so we need to use view formats
-        let view_format = config.format.add_srgb_suffix();
-        config.view_formats.push(view_format);
-
-        surface.configure(&ctx.device, &config);
-        Self {
-            instance: ctx.instance,
-            adapter: ctx.adapter,
-            device: ctx.device,
-            queue: ctx.queue,
-            surface,
-            config,
-        }
-    }
-
     pub fn resize(&mut self, size: PhysicalSize<u32>) {
         log::info!("Surface resize {size:?}");
 
