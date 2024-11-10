@@ -6,9 +6,7 @@ use std::ops::Deref;
 
 use camera::{Camera, CameraUniform};
 use compute::POS;
-use encase::ShaderType;
 use renderer::SurfaceContext;
-// use compute::Vertex;
 use texture::Texture;
 use wgpu::util::DeviceExt;
 use winit::event::WindowEvent;
@@ -19,15 +17,12 @@ struct State {
     rpipeline: wgpu::RenderPipeline,
     spipeline: wgpu::RenderPipeline,
     cpipeline: compute::ComputePipeline,
-    // vertex_buffer: wgpu::Buffer,
-    // index_buffer: wgpu::Buffer,
     camera: Camera,
     camera_uniform: CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     diffuse_bind_group: wgpu::BindGroup,
     depth_texture: Texture,
-    // indices: Vec<u32>,
 }
 
 impl State {
@@ -202,18 +197,7 @@ impl State {
                     compilation_options: Default::default(),
                     targets: &[Some(wgpu::ColorTargetState {
                         format: ctx.config.view_formats[0],
-                        blend: Some(wgpu::BlendState {
-                            color: wgpu::BlendComponent {
-                                src_factor: wgpu::BlendFactor::SrcAlpha,
-                                dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                                operation: wgpu::BlendOperation::Add,
-                            },
-                            alpha: wgpu::BlendComponent {
-                                src_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                                dst_factor: wgpu::BlendFactor::One,
-                                operation: wgpu::BlendOperation::Add,
-                            },
-                        }),
+                        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
                 }),
@@ -247,15 +231,12 @@ impl State {
             rpipeline,
             spipeline,
             cpipeline,
-            // vertex_buffer,
-            // index_buffer,
             camera,
             camera_uniform,
             camera_buffer,
             camera_bind_group,
             diffuse_bind_group,
             depth_texture,
-            // indices,
         }
     }
 }
@@ -370,7 +351,7 @@ async fn run() {
     let window = renderer::Window::new("wgpu");
     env_logger::init();
     let w = window.get_window();
-    let mut ctx = renderer::Context::init().await.attach_window(w.deref());
+    let mut ctx = renderer::Context::init().await.attach_window(&w);
     let app = State::new(&ctx).await;
     window.run(&mut ctx, app);
 }

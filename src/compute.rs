@@ -181,8 +181,7 @@ impl ComputePipeline {
             size: (POS.len() / 2 * 6 * std::mem::size_of::<u32>()) as wgpu::BufferAddress,
             usage: wgpu::BufferUsages::INDEX
                 | wgpu::BufferUsages::STORAGE
-                | wgpu::BufferUsages::COPY_DST
-                | wgpu::BufferUsages::COPY_SRC,
+                | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 

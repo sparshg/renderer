@@ -5,16 +5,10 @@ struct Vertex {
 
 @group(0) @binding(0)
 var<storage, read> points: array<vec3<f32>>;
-// [s, a, b], [c, 0, 0], 
-// [x0, y0, z0], [x1, y1, z1], [x2, y2, z2]
 @group(0) @binding(1)
 var<storage, read_write> vertices: array<Vertex>;
 @group(0) @binding(2)
 var<storage, read_write> indices: array<u32>;
-// 0, 1, 2, 3, 4
-// 0, 1, 2, 2, 3, 4
-// [0, 1, 2] [0, 0, 3]
-// [3, 4, 5] [0, 3, 6]
 
 @compute @workgroup_size(64)
 fn main(@builtin(global_invocation_id) id: vec3<u32>) {

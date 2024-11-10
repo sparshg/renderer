@@ -1,5 +1,27 @@
 use winit::dpi::PhysicalSize;
 
+pub trait AnyContext {
+    fn device(&self) -> &wgpu::Device;
+    fn queue(&self) -> &wgpu::Queue;
+}
+
+macro_rules! impl_context {
+    ($type:ty) => {
+        impl AnyContext for $type {
+            fn device(&self) -> &wgpu::Device {
+                &self.device
+            }
+            fn queue(&self) -> &wgpu::Queue {
+                &self.queue
+            }
+        }
+    };
+}
+
+impl_context!(Context);
+impl_context!(SurfaceContext<'_>);
+
+// TODO: Make restrictive pubs
 pub struct Context {
     instance: wgpu::Instance,
     adapter: wgpu::Adapter,
