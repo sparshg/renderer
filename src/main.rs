@@ -1,8 +1,8 @@
 mod camera;
 mod compute;
+mod object;
 mod renderer;
 mod texture;
-use std::ops::Deref;
 
 use camera::{Camera, CameraUniform};
 use compute::POS;

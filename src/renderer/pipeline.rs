@@ -1,4 +1,7 @@
-use wgpu::core::pipeline;
+use wgpu::{
+    core::pipeline, ColorTargetState, DepthStencilState, FragmentState, StencilFaceState,
+    VertexBufferLayout,
+};
 
 use super::{
     context::{AnyContext, Context},
@@ -12,120 +15,141 @@ impl PipelineType for Render {}
 impl PipelineType for Compute {}
 
 pub struct PipelineBuilder<'a, T: PipelineType> {
-    label: String,
+    label: &'a str,
     shader: &'a wgpu::ShaderModule,
-    fragment: bool,
-    // bind_group: wgpu::BindGroup,
+    vertex: Option<&'a [VertexBufferLayout<'a>]>,
+    fragment: Option<FragmentState<'a>>,
+    depth_stencil: Option<DepthStencilState>,
+    bind_group_layouts: Vec<&'a wgpu::BindGroupLayout>,
     marker: std::marker::PhantomData<T>,
 }
 
-impl<'a> PipelineBuilder<'a, Compute> {
-    pub fn for_compute<'b: 'a>(label: impl Into<String>, shader: &'b wgpu::ShaderModule) -> Self {
+impl<'a, T: PipelineType> PipelineBuilder<'a, T> {
+    fn new<'b: 'a>(
+        label: &'b str,
+        shader: &'b wgpu::ShaderModule,
+        vertex_buffers: Option<&'b [VertexBufferLayout<'b>]>,
+    ) -> Self {
         Self {
-            label: label.into(),
+            label,
             shader,
-            fragment: false,
+            fragment: None,
+            vertex: vertex_buffers,
+            depth_stencil: None,
+            bind_group_layouts: Vec::new(),
             marker: std::marker::PhantomData,
         }
     }
-    pub fn build(&self, ctx: &impl AnyContext) {
-        let pipeline_layout =
-            ctx.device()
-                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: None,
-                    bind_group_layouts: &[],
-                    push_constant_ranges: &[],
-                });
 
+    fn pipeline_layout(&self, ctx: &impl AnyContext) -> wgpu::PipelineLayout {
+        ctx.device()
+            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: None,
+                bind_group_layouts: &self.bind_group_layouts,
+                push_constant_ranges: &[],
+            })
+    }
+
+    pub fn add_bind_group_layout<'b: 'a>(
+        &mut self,
+        bind_group_layout: &'b wgpu::BindGroupLayout,
+    ) -> &mut Self {
+        self.bind_group_layouts.push(bind_group_layout);
+        self
+    }
+}
+
+impl<'a> PipelineBuilder<'a, Compute> {
+    pub fn for_compute<'b: 'a>(label: &'b str, shader: &'b wgpu::ShaderModule) -> Self {
+        Self::new(label, shader, None)
+    }
+
+    pub fn build(self, ctx: &impl AnyContext) -> Pipeline {
         let pipeline = ctx
             .device()
             .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: None,
-                layout: Some(&pipeline_layout),
+                label: Some(self.label),
+                layout: Some(&self.pipeline_layout(ctx)),
                 module: self.shader,
                 entry_point: "main",
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
                 cache: None,
             });
+        Pipeline {
+            label: self.label.to_string(),
+            pipeline: GenericPipeline::Compute(pipeline),
+        }
     }
 }
 
 impl<'a> PipelineBuilder<'a, Render> {
-    pub fn for_render<'b: 'a>(label: impl Into<String>, shader: &'b wgpu::ShaderModule) -> Self {
-        Self {
-            label: label.into(),
-            shader,
-            fragment: true,
-            marker: std::marker::PhantomData,
+    pub fn for_render<'b: 'a>(
+        label: &'b str,
+        shader: &'b wgpu::ShaderModule,
+        vertex_buffers: &'b [VertexBufferLayout<'b>],
+    ) -> Self {
+        Self::new(label, shader, Some(vertex_buffers))
+    }
+
+    pub fn fragment<'b: 'a>(
+        &mut self,
+        entry_point: &'b str,
+        targets: &'b [Option<ColorTargetState>],
+    ) -> &mut Self {
+        self.fragment = Some(FragmentState {
+            module: self.shader,
+            entry_point,
+            targets,
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+        });
+        self
+    }
+
+    pub fn depth_stencil(
+        &mut self,
+        depth_write_enabled: bool,
+        stencil: StencilFaceState,
+        read_mask: u32,
+        write_mask: u32,
+    ) -> &mut Self {
+        self.depth_stencil = Some(DepthStencilState {
+            format: wgpu::TextureFormat::Depth24PlusStencil8,
+            depth_write_enabled,
+            depth_compare: wgpu::CompareFunction::Less,
+            stencil: wgpu::StencilState {
+                front: stencil,
+                back: stencil,
+                read_mask,
+                write_mask,
+            },
+            bias: wgpu::DepthBiasState::default(),
+        });
+        self
+    }
+
+    pub fn build(self, ctx: &impl AnyContext) -> Pipeline {
+        let pipeline = ctx
+            .device()
+            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some(self.label),
+                layout: Some(&self.pipeline_layout(ctx)),
+                vertex: wgpu::VertexState {
+                    module: self.shader,
+                    entry_point: "vs_main",
+                    buffers: self.vertex.unwrap(),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                },
+                fragment: self.fragment,
+                primitive: wgpu::PrimitiveState::default(),
+                multisample: wgpu::MultisampleState::default(),
+                depth_stencil: self.depth_stencil,
+                multiview: None,
+                cache: None,
+            });
+        Pipeline {
+            label: self.label.to_string(),
+            pipeline: GenericPipeline::Render(pipeline),
         }
-    }
-
-    pub fn disable_fragment(&mut self) -> &mut Self {
-        self.fragment = false;
-        self
-    }
-
-    // pub fn enable_depth(compare: Compa)
-
-    pub fn build(&mut self, ctx: &SurfaceContext) -> &mut Self {
-        //     let bind_group_layout =
-        //         ctx.device
-        //             .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        //                 label: None,
-        //                 entries: &[wgpu::BindGroupLayoutEntry {
-        //                     binding: 0,
-        //                     visibility: wgpu::ShaderStages::FRAGMENT,
-        //                     ty: wgpu::BindingType::Buffer {
-        //                         ty: wgpu::BufferBindingType::Uniform,
-        //                         has_dynamic_offset: false,
-        //                         min_binding_size: None,
-        //                     },
-        //                     count: None,
-        //                 }],
-        //             });
-
-        //     let pipeline_layout = ctx
-        //         .device
-        //         .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        //             label: None,
-        //             bind_group_layouts: &[&bind_group_layout],
-        //             push_constant_ranges: &[],
-        //         });
-
-        //     let targets = &[Some(wgpu::ColorTargetState {
-        //         format: ctx.config.view_formats[0],
-        //         blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-        //         write_mask: wgpu::ColorWrites::ALL,
-        //     })];
-
-        //     let pipeline = ctx
-        //         .device
-        //         .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        //             label: self.label.as_deref(),
-        //             layout: Some(&pipeline_layout),
-        //             vertex: wgpu::VertexState {
-        //                 module: self.shader,
-        //                 entry_point: "vs_main",
-        //                 buffers: &[wgpu::VertexBufferLayout {
-        //                     array_stride: VERTEX_STRUCT_SIZE,
-        //                     step_mode: wgpu::VertexStepMode::Vertex,
-        //                     attributes: &wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x2],
-        //                 }],
-        //                 compilation_options: wgpu::PipelineCompilationOptions::default(),
-        //             },
-        //             fragment: self.fragment.then(|| wgpu::FragmentState {
-        //                 module: self.shader,
-        //                 entry_point: "fs_main",
-        //                 targets,
-        //                 compilation_options: wgpu::PipelineCompilationOptions::default(),
-        //             }),
-        //             primitive: wgpu::PrimitiveState::default(),
-        //             multisample: wgpu::MultisampleState::default(),
-        //             depth_stencil: None,
-        //             multiview: None,
-        //             cache: None,
-        //         });
-        self
     }
 
     // pub fn
@@ -139,7 +163,6 @@ enum GenericPipeline {
 struct Pipeline {
     label: String,
     pipeline: GenericPipeline,
-    bind_group: wgpu::BindGroup,
 }
 
 impl Pipeline {
