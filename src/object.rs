@@ -1,4 +1,4 @@
-use cgmath::{Basis2, Basis3, Matrix4, Quaternion, Rotation2, Rotation3, Vector2, Vector3};
+use cgmath::{Quaternion, Vector3};
 
 struct Transform {
     position: Vector3<f32>,
@@ -8,6 +8,8 @@ struct Transform {
 
 struct Object {
     transform: Transform,
+    vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
 }
 
 // impl Object {

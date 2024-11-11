@@ -1,17 +1,15 @@
 use wgpu::{
-    core::pipeline, ColorTargetState, DepthStencilState, FragmentState, StencilFaceState,
-    VertexBufferLayout,
+    ColorTargetState, DepthStencilState, FragmentState, StencilFaceState, VertexBufferLayout,
 };
 
-use super::{
-    context::{AnyContext, Context},
-    SurfaceContext,
-};
+use super::context::AnyContext;
 
 trait PipelineType {}
+struct RenderNoVertex;
 struct Render;
 struct Compute;
 impl PipelineType for Render {}
+impl PipelineType for RenderNoVertex {}
 impl PipelineType for Compute {}
 
 pub struct PipelineBuilder<'a, T: PipelineType> {
@@ -25,16 +23,12 @@ pub struct PipelineBuilder<'a, T: PipelineType> {
 }
 
 impl<'a, T: PipelineType> PipelineBuilder<'a, T> {
-    fn new<'b: 'a>(
-        label: &'b str,
-        shader: &'b wgpu::ShaderModule,
-        vertex_buffers: Option<&'b [VertexBufferLayout<'b>]>,
-    ) -> Self {
+    fn new<'b: 'a>(label: &'b str, shader: &'b wgpu::ShaderModule) -> Self {
         Self {
             label,
             shader,
             fragment: None,
-            vertex: vertex_buffers,
+            vertex: None,
             depth_stencil: None,
             bind_group_layouts: Vec::new(),
             marker: std::marker::PhantomData,
@@ -51,9 +45,9 @@ impl<'a, T: PipelineType> PipelineBuilder<'a, T> {
     }
 
     pub fn add_bind_group_layout<'b: 'a>(
-        &mut self,
+        mut self,
         bind_group_layout: &'b wgpu::BindGroupLayout,
-    ) -> &mut Self {
+    ) -> Self {
         self.bind_group_layouts.push(bind_group_layout);
         self
     }
@@ -61,7 +55,7 @@ impl<'a, T: PipelineType> PipelineBuilder<'a, T> {
 
 impl<'a> PipelineBuilder<'a, Compute> {
     pub fn for_compute<'b: 'a>(label: &'b str, shader: &'b wgpu::ShaderModule) -> Self {
-        Self::new(label, shader, None)
+        Self::new(label, shader)
     }
 
     pub fn build(self, ctx: &impl AnyContext) -> Pipeline {
@@ -82,20 +76,33 @@ impl<'a> PipelineBuilder<'a, Compute> {
     }
 }
 
-impl<'a> PipelineBuilder<'a, Render> {
-    pub fn for_render<'b: 'a>(
-        label: &'b str,
-        shader: &'b wgpu::ShaderModule,
-        vertex_buffers: &'b [VertexBufferLayout<'b>],
-    ) -> Self {
-        Self::new(label, shader, Some(vertex_buffers))
+impl<'a> PipelineBuilder<'a, RenderNoVertex> {
+    pub fn for_render<'b: 'a>(label: &'b str, shader: &'b wgpu::ShaderModule) -> Self {
+        Self::new(label, &shader)
     }
 
+    pub fn vertex<'b: 'a>(
+        self,
+        vertex_buffers: &'b [VertexBufferLayout<'b>],
+    ) -> PipelineBuilder<'a, Render> {
+        PipelineBuilder {
+            label: self.label,
+            shader: self.shader,
+            vertex: Some(vertex_buffers),
+            fragment: self.fragment,
+            depth_stencil: self.depth_stencil,
+            bind_group_layouts: self.bind_group_layouts,
+            marker: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<'a> PipelineBuilder<'a, Render> {
     pub fn fragment<'b: 'a>(
-        &mut self,
+        mut self,
         entry_point: &'b str,
         targets: &'b [Option<ColorTargetState>],
-    ) -> &mut Self {
+    ) -> Self {
         self.fragment = Some(FragmentState {
             module: self.shader,
             entry_point,
@@ -106,12 +113,12 @@ impl<'a> PipelineBuilder<'a, Render> {
     }
 
     pub fn depth_stencil(
-        &mut self,
+        mut self,
         depth_write_enabled: bool,
         stencil: StencilFaceState,
         read_mask: u32,
         write_mask: u32,
-    ) -> &mut Self {
+    ) -> Self {
         self.depth_stencil = Some(DepthStencilState {
             format: wgpu::TextureFormat::Depth24PlusStencil8,
             depth_write_enabled,
@@ -151,8 +158,6 @@ impl<'a> PipelineBuilder<'a, Render> {
             pipeline: GenericPipeline::Render(pipeline),
         }
     }
-
-    // pub fn
 }
 
 enum GenericPipeline {
@@ -160,7 +165,7 @@ enum GenericPipeline {
     Compute(wgpu::ComputePipeline),
 }
 
-struct Pipeline {
+pub struct Pipeline {
     label: String,
     pipeline: GenericPipeline,
 }

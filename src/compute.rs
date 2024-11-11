@@ -1,7 +1,10 @@
 use cgmath::Vector3;
 use wgpu::util::DeviceExt;
 
-use crate::VERTEX_STRUCT_SIZE;
+use crate::{
+    renderer::{BindGroupBuilder, Pipeline, PipelineBuilder, SurfaceContext},
+    VERTEX_STRUCT_SIZE,
+};
 
 pub const POS: &[[f32; 3]; 17] = &[
     [1., 0., 1.],
@@ -100,7 +103,7 @@ pub const POS: &[[f32; 3]; 17] = &[
     // [-0.00486875, 0.18323125, -0.],
 ];
 pub struct ComputePipeline {
-    pub pipeline: wgpu::ComputePipeline,
+    pub pipeline: Pipeline,
     pub bind_group: wgpu::BindGroup,
     pub point_buff: wgpu::Buffer,
     pub vert_buff: wgpu::Buffer,
@@ -108,67 +111,31 @@ pub struct ComputePipeline {
 }
 
 impl ComputePipeline {
-    pub fn new(device: &wgpu::Device) -> Self {
-        let shader = device.create_shader_module(wgpu::include_wgsl!("compute.wgsl"));
-        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: None,
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-            ],
-        });
+    pub fn new(ctx: &SurfaceContext) -> Self {
+        let shader = ctx
+            .device
+            .create_shader_module(wgpu::include_wgsl!("compute.wgsl"));
+        let bind_group_layout = BindGroupBuilder::new("Compute bind group")
+            .add_storage_buffer(wgpu::ShaderStages::COMPUTE, true, None)
+            .add_storage_buffer(wgpu::ShaderStages::COMPUTE, false, None)
+            .add_storage_buffer(wgpu::ShaderStages::COMPUTE, false, None)
+            .build(ctx);
 
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: None,
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
-        });
+        let pipeline = PipelineBuilder::for_compute("Compute Pipeline", &shader)
+            .add_bind_group_layout(&bind_group_layout)
+            .build(ctx);
 
-        let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: None,
-            layout: Some(&pipeline_layout),
-            module: &shader,
-            entry_point: "main",
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-            cache: None,
-        });
         let mut buffer = encase::StorageBuffer::new(Vec::new());
         buffer.write(&POS.map(Vector3::from)).unwrap();
         let buffer = buffer.into_inner();
-        let point_buff = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Point Buffer"),
-            usage: wgpu::BufferUsages::STORAGE,
-            contents: &buffer,
-        });
-        let vert_buff = device.create_buffer(&wgpu::BufferDescriptor {
+        let point_buff = ctx
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Point Buffer"),
+                usage: wgpu::BufferUsages::STORAGE,
+                contents: &buffer,
+            });
+        let vert_buff = ctx.device.create_buffer(&wgpu::BufferDescriptor {
             label: None,
             size: (POS.len() as u64 / 2 + 1) * 3 * VERTEX_STRUCT_SIZE as wgpu::BufferAddress,
             usage: wgpu::BufferUsages::VERTEX
@@ -176,7 +143,7 @@ impl ComputePipeline {
                 | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        let ind_buff = device.create_buffer(&wgpu::BufferDescriptor {
+        let ind_buff = ctx.device.create_buffer(&wgpu::BufferDescriptor {
             label: None,
             size: (POS.len() / 2 * 6 * std::mem::size_of::<u32>()) as wgpu::BufferAddress,
             usage: wgpu::BufferUsages::INDEX
@@ -185,7 +152,7 @@ impl ComputePipeline {
             mapped_at_creation: false,
         });
 
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        let bind_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
             layout: &bind_group_layout,
             entries: &[

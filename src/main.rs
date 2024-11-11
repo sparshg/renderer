@@ -6,16 +6,16 @@ mod texture;
 
 use camera::{Camera, CameraUniform};
 use compute::POS;
-use renderer::SurfaceContext;
+use renderer::{BindGroupBuilder, PipelineBuilder, SurfaceContext};
 use texture::Texture;
-use wgpu::util::DeviceExt;
+use wgpu::{util::DeviceExt, BindGroup, BindGroupLayout};
 use winit::event::WindowEvent;
 
 pub const VERTEX_STRUCT_SIZE: u64 = 32;
 
 struct State {
-    rpipeline: wgpu::RenderPipeline,
-    spipeline: wgpu::RenderPipeline,
+    rpipeline: renderer::Pipeline,
+    spipeline: renderer::Pipeline,
     cpipeline: compute::ComputePipeline,
     camera: Camera,
     camera_uniform: CameraUniform,
@@ -35,32 +35,10 @@ impl State {
         )
         .unwrap();
 
-        let texture_bind_group_layout =
-            ctx.device
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    entries: &[
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 0,
-                            visibility: wgpu::ShaderStages::FRAGMENT,
-                            ty: wgpu::BindingType::Texture {
-                                multisampled: false,
-                                view_dimension: wgpu::TextureViewDimension::D2,
-                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            },
-                            count: None,
-                        },
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 1,
-                            visibility: wgpu::ShaderStages::FRAGMENT,
-                            // This should match the filterable field of the
-                            // corresponding Texture entry above.
-                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                            count: None,
-                        },
-                    ],
-                    label: Some("texture_bind_group_layout"),
-                });
-
+        let texture_bind_group_layout = BindGroupBuilder::new("texture_bind_group_layout")
+            .add_texture_float_filterable_d2(wgpu::ShaderStages::FRAGMENT, false)
+            .add_sampler_filterable(wgpu::ShaderStages::FRAGMENT)
+            .build(ctx);
         let diffuse_bind_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &texture_bind_group_layout,
             entries: &[
@@ -88,21 +66,9 @@ impl State {
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             });
 
-        let camera_bind_group_layout =
-            ctx.device
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    entries: &[wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    }],
-                    label: Some("camera_bind_group_layout"),
-                });
+        let camera_bind_group_layout = BindGroupBuilder::new("camera_bind_group_layout")
+            .add_uniform_buffer(wgpu::ShaderStages::VERTEX, None)
+            .build(ctx);
 
         let camera_bind_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &camera_bind_group_layout,
@@ -113,19 +79,12 @@ impl State {
             label: Some("camera_bind_group"),
         });
 
-        let pipeline_layout = ctx
-            .device
-            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&camera_bind_group_layout, &texture_bind_group_layout],
-                push_constant_ranges: &[],
-            });
-
         let shader = ctx
             .device
             .create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
         // let swapchain_capabilities = surface.get_capabilities(&adapter);
         // let swapchain_format = swapchain_capabilities.formats[0];
+
         let stencil_s = wgpu::StencilFaceState {
             compare: wgpu::CompareFunction::Always,
             fail_op: wgpu::StencilOperation::Keep,
@@ -138,95 +97,44 @@ impl State {
             depth_fail_op: wgpu::StencilOperation::Keep,
             pass_op: wgpu::StencilOperation::Keep,
         };
-        let spipeline = ctx
-            .device
-            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("Stencil Pipeline"),
-                layout: Some(&pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &shader,
-                    entry_point: "vs_main",
-                    buffers: &[wgpu::VertexBufferLayout {
-                        array_stride: VERTEX_STRUCT_SIZE,
-                        step_mode: wgpu::VertexStepMode::Vertex,
-                        attributes: &wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x2],
-                    }],
-                    compilation_options: Default::default(),
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader,
-                    entry_point: "stencil",
-                    compilation_options: Default::default(),
-                    targets: &[],
-                }),
-                primitive: wgpu::PrimitiveState::default(),
-                multisample: wgpu::MultisampleState::default(),
-                depth_stencil: Some(wgpu::DepthStencilState {
-                    format: wgpu::TextureFormat::Depth24PlusStencil8,
-                    depth_write_enabled: false,
-                    depth_compare: wgpu::CompareFunction::Always,
-                    stencil: wgpu::StencilState {
-                        front: stencil_s,
-                        back: stencil_s,
-                        read_mask: 1,
-                        write_mask: 1,
-                    },
-                    bias: wgpu::DepthBiasState::default(),
-                }),
-                multiview: None,
-                cache: None,
-            });
-        let rpipeline = ctx
-            .device
-            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("Render Pipeline"),
-                layout: Some(&pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &shader,
-                    entry_point: "vs_main",
-                    buffers: &[wgpu::VertexBufferLayout {
-                        array_stride: VERTEX_STRUCT_SIZE,
-                        step_mode: wgpu::VertexStepMode::Vertex,
-                        attributes: &wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x2],
-                    }],
-                    compilation_options: Default::default(),
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader,
-                    entry_point: "fs_main",
-                    compilation_options: Default::default(),
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format: ctx.config.view_formats[0],
-                        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                }),
-                primitive: wgpu::PrimitiveState::default(),
-                multisample: wgpu::MultisampleState::default(),
-                depth_stencil: Some(wgpu::DepthStencilState {
-                    format: wgpu::TextureFormat::Depth24PlusStencil8,
-                    depth_write_enabled: true,
-                    depth_compare: wgpu::CompareFunction::Less,
-                    stencil: wgpu::StencilState {
-                        front: stencil_r,
-                        back: stencil_r,
-                        read_mask: 1,
-                        write_mask: 1,
-                    },
-                    bias: wgpu::DepthBiasState::default(),
-                }),
-                multiview: None,
-                cache: None,
-            });
+        let spipeline = PipelineBuilder::for_render("Stencil Pipeline", &shader)
+            .vertex(&[wgpu::VertexBufferLayout {
+                array_stride: VERTEX_STRUCT_SIZE,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x2],
+            }])
+            .fragment("stencil", &[])
+            .depth_stencil(false, stencil_s, 1, 1)
+            .add_bind_group_layout(&camera_bind_group_layout)
+            .add_bind_group_layout(&texture_bind_group_layout)
+            .build(ctx);
 
-        let cpipeline = compute::ComputePipeline::new(&ctx.device);
+        let rpipeline = PipelineBuilder::for_render("Render Pipeline", &shader)
+            .vertex(&[wgpu::VertexBufferLayout {
+                array_stride: VERTEX_STRUCT_SIZE,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x2],
+            }])
+            .fragment(
+                "fs_main",
+                &[Some(wgpu::ColorTargetState {
+                    format: ctx.config.view_formats[0],
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            )
+            .depth_stencil(true, stencil_r, 1, 1)
+            .add_bind_group_layout(&camera_bind_group_layout)
+            .add_bind_group_layout(&texture_bind_group_layout)
+            .build(ctx);
+
+        let cpipeline = compute::ComputePipeline::new(&ctx);
 
         let depth_texture = texture::Texture::create_depth_texture(
             &ctx.device,
             (ctx.config.width, ctx.config.height),
             "depth_texture",
         );
-
         Self {
             rpipeline,
             spipeline,
