@@ -6,17 +6,19 @@ mod pipeline;
 mod window;
 
 pub use bindgroup::BindGroupBuilder;
+pub use context::AnyContext;
 pub use context::Context;
 pub use context::SurfaceContext;
-pub use pipeline::Pipeline;
-pub use pipeline::PipelineBuilder;
+pub use pipeline::{Pipeline, PipelineBuilder};
 pub use window::App;
 pub use window::Window;
+
+use crate::camera::Camera;
 
 async fn test() {
     let win = window::Window::new("test");
     let w = win.get_window();
-    let mut ctx = context::Context::init().await.attach_window(&w);
+    let ctx = context::Context::init().await.attach_window(&w);
 
     // // let SurfaceWrapper { surface, config } = window::Window::init_surface(&ctx, &win.window);
     // // ctx.surface = Some(surface);
@@ -35,4 +37,8 @@ async fn test() {
     //     .fragment("fs_main")
     //     .depth_stencil(true, stencil_r, 1, 1)
     //     .build(&ctx);
+}
+
+pub struct Renderer {
+    camera: Camera,
 }

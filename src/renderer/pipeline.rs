@@ -1,13 +1,13 @@
 use wgpu::{
-    ColorTargetState, DepthStencilState, FragmentState, StencilFaceState, VertexBufferLayout,
+    ColorTargetState, ComputePipeline, DepthStencilState, FragmentState, RenderPipeline, StencilFaceState, VertexBufferLayout,
 };
 
 use super::context::AnyContext;
 
 trait PipelineType {}
-struct RenderNoVertex;
-struct Render;
-struct Compute;
+pub struct RenderNoVertex;
+pub struct Render;
+pub struct Compute;
 impl PipelineType for Render {}
 impl PipelineType for RenderNoVertex {}
 impl PipelineType for Compute {}
@@ -36,9 +36,10 @@ impl<'a, T: PipelineType> PipelineBuilder<'a, T> {
     }
 
     fn pipeline_layout(&self, ctx: &impl AnyContext) -> wgpu::PipelineLayout {
+        let label = self.label.to_string() + " layout";
         ctx.device()
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: None,
+                label: Some(&label),
                 bind_group_layouts: &self.bind_group_layouts,
                 push_constant_ranges: &[],
             })
@@ -58,7 +59,7 @@ impl<'a> PipelineBuilder<'a, Compute> {
         Self::new(label, shader)
     }
 
-    pub fn build(self, ctx: &impl AnyContext) -> Pipeline {
+    pub fn build(self, ctx: &'a impl AnyContext) -> Pipeline<ComputePipeline> {
         let pipeline = ctx
             .device()
             .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
@@ -69,16 +70,13 @@ impl<'a> PipelineBuilder<'a, Compute> {
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
                 cache: None,
             });
-        Pipeline {
-            label: self.label.to_string(),
-            pipeline: GenericPipeline::Compute(pipeline),
-        }
+        Pipeline::new(pipeline, self.bind_group_layouts.len(), 0)
     }
 }
 
 impl<'a> PipelineBuilder<'a, RenderNoVertex> {
     pub fn for_render<'b: 'a>(label: &'b str, shader: &'b wgpu::ShaderModule) -> Self {
-        Self::new(label, &shader)
+        Self::new(label, shader)
     }
 
     pub fn vertex<'b: 'a>(
@@ -134,7 +132,7 @@ impl<'a> PipelineBuilder<'a, Render> {
         self
     }
 
-    pub fn build(self, ctx: &impl AnyContext) -> Pipeline {
+    pub fn build(self, ctx: &'a impl AnyContext) -> Pipeline<RenderPipeline> {
         let pipeline = ctx
             .device()
             .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -153,43 +151,110 @@ impl<'a> PipelineBuilder<'a, Render> {
                 multiview: None,
                 cache: None,
             });
-        Pipeline {
-            label: self.label.to_string(),
-            pipeline: GenericPipeline::Render(pipeline),
+        Pipeline::new(
+            pipeline,
+            self.bind_group_layouts.len(),
+            self.vertex.unwrap().len(),
+        )
+    }
+}
+
+pub struct Pipeline<T> {
+    pub pipeline: T, //TODO: no public
+    num_bind_groups: usize,
+    num_vertex_buffers: usize,
+}
+
+pub struct PipelinePass<'a, T> {
+    label: Option<String>,
+    pipeline: &'a T,
+    num_bind_groups: usize,
+    num_vertex_buffers: usize,
+    bind_groups: Vec<&'a wgpu::BindGroup>,
+    vertex_buffers: Vec<&'a wgpu::Buffer>,
+    index_buffer: Option<&'a wgpu::Buffer>,
+}
+
+impl<T> Pipeline<T> {
+    fn new(pipeline: T, num_bind_groups: usize, num_vertex_buffers: usize) -> Self {
+        Self {
+            pipeline,
+            num_bind_groups,
+            num_vertex_buffers,
+        }
+    }
+
+    pub fn begin_pass(&self, label: impl Into<String>) -> PipelinePass<'_, T> {
+        PipelinePass {
+            label: Some(label.into()),
+            pipeline: &self.pipeline,
+            num_bind_groups: self.num_bind_groups,
+            num_vertex_buffers: self.num_vertex_buffers,
+            bind_groups: Vec::with_capacity(self.num_bind_groups),
+            vertex_buffers: Vec::with_capacity(self.num_vertex_buffers),
+            index_buffer: None,
         }
     }
 }
 
-enum GenericPipeline {
-    Render(wgpu::RenderPipeline),
-    Compute(wgpu::ComputePipeline),
+impl<'a, T> PipelinePass<'a, T> {
+    pub fn add_bind_group<'b: 'a>(mut self, bind_group: &'b wgpu::BindGroup) -> Self {
+        self.bind_groups.push(bind_group);
+        self
+    }
 }
 
-pub struct Pipeline {
-    label: String,
-    pipeline: GenericPipeline,
-}
+impl<'a> PipelinePass<'a, RenderPipeline> {
+    pub fn add_vertex_buffer<'b: 'a>(mut self, vertex_buffer: &'a wgpu::Buffer) -> Self {
+        self.vertex_buffers.push(vertex_buffer);
+        self
+    }
 
-impl Pipeline {
-    pub fn pass(&self, encoder: &mut wgpu::CommandEncoder) {
-        match &self.pipeline {
-            GenericPipeline::Render(pipeline) => {
-                let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: None,
-                    color_attachments: &[],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                });
-                render_pass.set_pipeline(pipeline);
-            }
-            GenericPipeline::Compute(pipeline) => {
-                let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                    label: None,
-                    timestamp_writes: None,
-                });
-                compute_pass.set_pipeline(pipeline);
-            }
+    pub fn add_index_buffer<'b: 'a>(mut self, index_buffer: &'a wgpu::Buffer) -> Self {
+        self.index_buffer = Some(index_buffer);
+        self
+    }
+
+    pub fn pass(
+        &mut self,
+        encoder: &mut wgpu::CommandEncoder,
+        color_attachments: &[Option<wgpu::RenderPassColorAttachment<'_>>],
+        depth_stencil_attachment: Option<wgpu::RenderPassDepthStencilAttachment<'_>>,
+    ) {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: self.label.as_deref(),
+            color_attachments,
+            depth_stencil_attachment,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+        render_pass.set_pipeline(self.pipeline);
+        for (i, bind_group) in self.bind_groups.iter().enumerate() {
+            render_pass.set_bind_group(i as u32, bind_group, &[]);
         }
+        for (i, vertex_buffer) in self.vertex_buffers.iter().enumerate() {
+            render_pass.set_vertex_buffer(i as u32, vertex_buffer.slice(..));
+        }
+        render_pass.set_index_buffer(
+            self.index_buffer.unwrap().slice(..),
+            wgpu::IndexFormat::Uint32,
+        );
+        let indices =
+            self.index_buffer.unwrap().size() / std::mem::size_of::<u32>() as wgpu::BufferAddress;
+        render_pass.draw_indexed(0..indices as u32, 0, 0..1);
+    }
+}
+
+impl PipelinePass<'_, ComputePipeline> {
+    pub fn pass(&self, encoder: &mut wgpu::CommandEncoder, dispatch: (u32, u32, u32)) {
+        let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+            label: self.label.as_deref(),
+            timestamp_writes: None,
+        });
+        compute_pass.set_pipeline(self.pipeline);
+        for (i, bind_group) in self.bind_groups.iter().enumerate() {
+            compute_pass.set_bind_group(i as u32, bind_group, &[]);
+        }
+        compute_pass.dispatch_workgroups(dispatch.0, dispatch.1, dispatch.2);
     }
 }

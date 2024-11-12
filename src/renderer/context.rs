@@ -21,7 +21,6 @@ macro_rules! impl_context {
 impl_context!(Context);
 impl_context!(SurfaceContext<'_>);
 
-// TODO: Make restrictive pubs
 pub struct Context {
     instance: wgpu::Instance,
     adapter: wgpu::Adapter,

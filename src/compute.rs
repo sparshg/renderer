@@ -103,7 +103,7 @@ pub const POS: &[[f32; 3]; 17] = &[
     // [-0.00486875, 0.18323125, -0.],
 ];
 pub struct ComputePipeline {
-    pub pipeline: Pipeline,
+    pub pipeline: Pipeline<wgpu::ComputePipeline>,
     pub bind_group: wgpu::BindGroup,
     pub point_buff: wgpu::Buffer,
     pub vert_buff: wgpu::Buffer,

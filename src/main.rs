@@ -8,14 +8,14 @@ use camera::{Camera, CameraUniform};
 use compute::POS;
 use renderer::{BindGroupBuilder, PipelineBuilder, SurfaceContext};
 use texture::Texture;
-use wgpu::{util::DeviceExt, BindGroup, BindGroupLayout};
+use wgpu::{util::DeviceExt, RenderPipeline};
 use winit::event::WindowEvent;
 
 pub const VERTEX_STRUCT_SIZE: u64 = 32;
 
 struct State {
-    rpipeline: renderer::Pipeline,
-    spipeline: renderer::Pipeline,
+    rpipeline: renderer::Pipeline<RenderPipeline>,
+    spipeline: renderer::Pipeline<RenderPipeline>,
     cpipeline: compute::ComputePipeline,
     camera: Camera,
     camera_uniform: CameraUniform,
@@ -128,7 +128,7 @@ impl State {
             .add_bind_group_layout(&texture_bind_group_layout)
             .build(ctx);
 
-        let cpipeline = compute::ComputePipeline::new(&ctx);
+        let cpipeline = compute::ComputePipeline::new(ctx);
 
         let depth_texture = texture::Texture::create_depth_texture(
             &ctx.device,
@@ -165,16 +165,21 @@ impl renderer::App for State {
                 label: Some("Compute Pass"),
                 timestamp_writes: None,
             });
-            cpass.set_pipeline(&self.cpipeline.pipeline);
+            cpass.set_pipeline(&self.cpipeline.pipeline.pipeline);
             cpass.set_bind_group(0, &self.cpipeline.bind_group, &[]);
             cpass.dispatch_workgroups((((POS.len() / 2) as f32) / 64.0).ceil() as u32, 1, 1);
         }
-        let indices = self.cpipeline.ind_buff.size() as u32 / 4;
-        {
-            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Stencil Pass"),
-                color_attachments: &[],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+
+        self.spipeline
+            .begin_pass("Stencil Pass")
+            .add_bind_group(&self.camera_bind_group)
+            .add_bind_group(&self.diffuse_bind_group)
+            .add_vertex_buffer(&self.cpipeline.vert_buff)
+            .add_index_buffer(&self.cpipeline.ind_buff)
+            .pass(
+                &mut encoder,
+                &[],
+                Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.depth_texture.view,
                     depth_ops: None,
                     stencil_ops: Some(wgpu::Operations {
@@ -182,20 +187,16 @@ impl renderer::App for State {
                         store: wgpu::StoreOp::Store,
                     }),
                 }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            rpass.set_pipeline(&self.spipeline);
-            rpass.set_bind_group(0, &self.camera_bind_group, &[]);
-            rpass.set_bind_group(1, &self.diffuse_bind_group, &[]);
-            rpass.set_vertex_buffer(0, self.cpipeline.vert_buff.slice(..));
-            rpass.set_index_buffer(self.cpipeline.ind_buff.slice(..), wgpu::IndexFormat::Uint32);
-            rpass.draw_indexed(0..indices, 0, 0..1);
-        }
-        {
-            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+            );
+        self.rpipeline
+            .begin_pass("Render Pass")
+            .add_bind_group(&self.camera_bind_group)
+            .add_bind_group(&self.diffuse_bind_group)
+            .add_vertex_buffer(&self.cpipeline.vert_buff)
+            .add_index_buffer(&self.cpipeline.ind_buff)
+            .pass(
+                &mut encoder,
+                &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
@@ -203,7 +204,7 @@ impl renderer::App for State {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.depth_texture.view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
@@ -211,17 +212,7 @@ impl renderer::App for State {
                     }),
                     stencil_ops: None,
                 }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            rpass.set_pipeline(&self.rpipeline);
-            rpass.set_bind_group(0, &self.camera_bind_group, &[]);
-            rpass.set_bind_group(1, &self.diffuse_bind_group, &[]);
-            rpass.set_vertex_buffer(0, self.cpipeline.vert_buff.slice(..));
-            rpass.set_index_buffer(self.cpipeline.ind_buff.slice(..), wgpu::IndexFormat::Uint32);
-            rpass.set_stencil_reference(1);
-            rpass.draw_indexed(0..indices, 0, 0..1);
-        }
+            );
         ctx.queue.submit(Some(encoder.finish()));
 
         frame.present();
