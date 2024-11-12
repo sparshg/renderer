@@ -6,7 +6,7 @@ mod texture;
 
 use camera::Camera;
 use compute::POS;
-use renderer::{BindGroupBuilder, PipelineBuilder, SurfaceContext};
+use renderer::{PipelineBuilder, SurfaceContext};
 use texture::Texture;
 use wgpu::RenderPipeline;
 use winit::event::WindowEvent;
@@ -18,7 +18,6 @@ struct State {
     spipeline: renderer::Pipeline<RenderPipeline>,
     cpipeline: compute::ComputePipeline,
     camera: Camera,
-    camera_bind_group: wgpu::BindGroup,
     depth_texture: Texture,
 }
 
@@ -26,35 +25,10 @@ impl State {
     async fn new(ctx: &SurfaceContext<'_>) -> Self {
         let camera = Camera::new(ctx);
 
-        let camera_bind_group_layout = BindGroupBuilder::new("camera_bind_group_layout")
-            .add_uniform_buffer(wgpu::ShaderStages::VERTEX, None)
-            .build(ctx);
-
-        let camera_bind_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &camera_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: camera.buffer.as_entire_binding(),
-            }],
-            label: Some("camera_bind_group"),
-        });
-
         let shader = ctx
             .device
             .create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
 
-        let stencil_s = wgpu::StencilFaceState {
-            compare: wgpu::CompareFunction::Always,
-            fail_op: wgpu::StencilOperation::Keep,
-            depth_fail_op: wgpu::StencilOperation::Invert,
-            pass_op: wgpu::StencilOperation::Invert,
-        };
-        let stencil_r = wgpu::StencilFaceState {
-            compare: wgpu::CompareFunction::Equal,
-            fail_op: wgpu::StencilOperation::Keep,
-            depth_fail_op: wgpu::StencilOperation::Keep,
-            pass_op: wgpu::StencilOperation::Keep,
-        };
         let spipeline = PipelineBuilder::for_render("Stencil Pipeline", &shader)
             .vertex(&[wgpu::VertexBufferLayout {
                 array_stride: VERTEX_STRUCT_SIZE,
@@ -62,8 +36,18 @@ impl State {
                 attributes: &wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x2],
             }])
             .fragment("stencil", &[])
-            .depth_stencil(false, stencil_s, 1, 1)
-            .add_bind_group_layout(&camera_bind_group_layout)
+            .depth_stencil(
+                false,
+                wgpu::StencilFaceState {
+                    compare: wgpu::CompareFunction::Always,
+                    fail_op: wgpu::StencilOperation::Keep,
+                    depth_fail_op: wgpu::StencilOperation::Invert,
+                    pass_op: wgpu::StencilOperation::Invert,
+                },
+                1,
+                1,
+            )
+            .add_bind_group_layout(&camera.bind_group_layout)
             .build(ctx);
 
         let rpipeline = PipelineBuilder::for_render("Render Pipeline", &shader)
@@ -80,8 +64,18 @@ impl State {
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             )
-            .depth_stencil(true, stencil_r, 1, 1)
-            .add_bind_group_layout(&camera_bind_group_layout)
+            .depth_stencil(
+                true,
+                wgpu::StencilFaceState {
+                    compare: wgpu::CompareFunction::Equal,
+                    fail_op: wgpu::StencilOperation::Keep,
+                    depth_fail_op: wgpu::StencilOperation::Keep,
+                    pass_op: wgpu::StencilOperation::Keep,
+                },
+                1,
+                1,
+            )
+            .add_bind_group_layout(&camera.bind_group_layout)
             .build(ctx);
 
         let cpipeline = compute::ComputePipeline::new(ctx);
@@ -96,7 +90,6 @@ impl State {
             spipeline,
             cpipeline,
             camera,
-            camera_bind_group,
             depth_texture,
         }
     }
@@ -113,19 +106,19 @@ impl renderer::App for State {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
-        {
-            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("Compute Pass"),
-                timestamp_writes: None,
-            });
-            cpass.set_pipeline(&self.cpipeline.pipeline.pipeline);
-            cpass.set_bind_group(0, &self.cpipeline.bind_group, &[]);
-            cpass.dispatch_workgroups((((POS.len() / 2) as f32) / 64.0).ceil() as u32, 1, 1);
-        }
+
+        self.cpipeline
+            .pipeline
+            .begin_pass("Compute Pass")
+            .add_bind_group(&self.cpipeline.bind_group)
+            .pass(
+                &mut encoder,
+                ((((POS.len() / 2) as f32) / 64.0).ceil() as u32, 1, 1),
+            );
 
         self.spipeline
             .begin_pass("Stencil Pass")
-            .add_bind_group(&self.camera_bind_group)
+            .add_bind_group(&self.camera.bind_group)
             .add_vertex_buffer(&self.cpipeline.vert_buff)
             .add_index_buffer(&self.cpipeline.ind_buff)
             .pass(
@@ -142,7 +135,7 @@ impl renderer::App for State {
             );
         self.rpipeline
             .begin_pass("Render Pass")
-            .add_bind_group(&self.camera_bind_group)
+            .add_bind_group(&self.camera.bind_group)
             .add_vertex_buffer(&self.cpipeline.vert_buff)
             .add_index_buffer(&self.cpipeline.ind_buff)
             .set_stencil_reference(1)

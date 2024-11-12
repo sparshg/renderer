@@ -1,5 +1,7 @@
 use std::num::NonZero;
 
+use wgpu::BufferSize;
+
 use super::context::AnyContext;
 
 pub struct BindGroupBuilder {
@@ -37,7 +39,7 @@ impl BindGroupBuilder {
     pub fn add_uniform_buffer(
         mut self,
         visibility: wgpu::ShaderStages,
-        min_binding_size: Option<NonZero<u64>>,
+        min_binding_size: Option<BufferSize>,
     ) -> Self {
         self.entries.push(wgpu::BindGroupLayoutEntry {
             binding: self.entries.len() as u32,

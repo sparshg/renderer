@@ -224,7 +224,7 @@ impl<'a> PipelinePass<'a, RenderPipeline> {
     }
 
     pub fn pass(
-        &mut self,
+        self,
         encoder: &mut wgpu::CommandEncoder,
         color_attachments: &[Option<wgpu::RenderPassColorAttachment<'_>>],
         depth_stencil_attachment: Option<wgpu::RenderPassDepthStencilAttachment<'_>>,
@@ -273,7 +273,7 @@ impl<'a> PipelinePass<'a, RenderPipeline> {
 }
 
 impl PipelinePass<'_, ComputePipeline> {
-    pub fn pass(&self, encoder: &mut wgpu::CommandEncoder, dispatch: (u32, u32, u32)) {
+    pub fn pass(self, encoder: &mut wgpu::CommandEncoder, dispatch: (u32, u32, u32)) {
         let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
             label: self.label.as_deref(),
             timestamp_writes: None,

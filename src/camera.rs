@@ -1,11 +1,12 @@
+
 use cgmath::{InnerSpace, Matrix3, Point3, Vector3};
-use wgpu::util::DeviceExt;
+use wgpu::{util::DeviceExt, BufferSize};
 use winit::{
     event::{ElementState, KeyEvent, WindowEvent},
     keyboard::{KeyCode, PhysicalKey},
 };
 
-use crate::renderer::AnyContext;
+use crate::renderer::{AnyContext, BindGroupBuilder, SurfaceContext};
 
 pub struct Camera {
     eye: Point3<f32>,
@@ -16,7 +17,9 @@ pub struct Camera {
     zfar: f32,
     pub aspect: f32,
     uniform: CameraUniform,
-    pub buffer: wgpu::Buffer,
+    buffer: wgpu::Buffer,
+    pub bind_group: wgpu::BindGroup,
+    pub bind_group_layout: wgpu::BindGroupLayout,
 
     speed: f32,
     is_forward_pressed: bool,
@@ -38,15 +41,28 @@ pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
 );
 
 impl Camera {
-    pub fn new(ctx: &impl AnyContext) -> Self {
+    pub fn new(ctx: &SurfaceContext<'_>) -> Self {
         let uniform = CameraUniform::new();
         let buffer = ctx
-            .device()
+            .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Camera Buffer"),
                 contents: bytemuck::cast_slice(&[uniform]),
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             });
+        let bind_group_layout = BindGroupBuilder::new("Camera Bind Group")
+            .add_uniform_buffer(wgpu::ShaderStages::VERTEX, BufferSize::new(buffer.size()))
+            .build(ctx);
+
+        let bind_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: buffer.as_entire_binding(),
+            }],
+            label: Some("camera_bind_group"),
+        });
+
         Camera {
             eye: Point3::new(0.0, 0.0, -1.),
             forward: Vector3::new(0.0, 0.0, 1.0),
@@ -66,6 +82,8 @@ impl Camera {
             cursor_down: false,
             uniform,
             buffer,
+            bind_group_layout,
+            bind_group,
         }
     }
 
