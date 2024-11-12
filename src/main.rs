@@ -4,11 +4,11 @@ mod object;
 mod renderer;
 mod texture;
 
-use camera::{Camera, CameraUniform};
+use camera::Camera;
 use compute::POS;
 use renderer::{BindGroupBuilder, PipelineBuilder, SurfaceContext};
 use texture::Texture;
-use wgpu::{util::DeviceExt, RenderPipeline};
+use wgpu::RenderPipeline;
 use winit::event::WindowEvent;
 
 pub const VERTEX_STRUCT_SIZE: u64 = 32;
@@ -18,53 +18,13 @@ struct State {
     spipeline: renderer::Pipeline<RenderPipeline>,
     cpipeline: compute::ComputePipeline,
     camera: Camera,
-    camera_uniform: CameraUniform,
-    camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
-    diffuse_bind_group: wgpu::BindGroup,
     depth_texture: Texture,
 }
 
 impl State {
     async fn new(ctx: &SurfaceContext<'_>) -> Self {
-        let diffuse_texture = texture::Texture::from_bytes(
-            &ctx.device,
-            &ctx.queue,
-            include_bytes!("happy-tree.png"),
-            "happy-tree.png",
-        )
-        .unwrap();
-
-        let texture_bind_group_layout = BindGroupBuilder::new("texture_bind_group_layout")
-            .add_texture_float_filterable_d2(wgpu::ShaderStages::FRAGMENT, false)
-            .add_sampler_filterable(wgpu::ShaderStages::FRAGMENT)
-            .build(ctx);
-        let diffuse_bind_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &texture_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
-                },
-            ],
-            label: Some("diffuse_bind_group"),
-        });
-
-        let camera = Camera::new();
-        let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_proj(&camera);
-
-        let camera_buffer = ctx
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Camera Buffer"),
-                contents: bytemuck::cast_slice(&[camera_uniform]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            });
+        let camera = Camera::new(ctx);
 
         let camera_bind_group_layout = BindGroupBuilder::new("camera_bind_group_layout")
             .add_uniform_buffer(wgpu::ShaderStages::VERTEX, None)
@@ -74,7 +34,7 @@ impl State {
             layout: &camera_bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
-                resource: camera_buffer.as_entire_binding(),
+                resource: camera.buffer.as_entire_binding(),
             }],
             label: Some("camera_bind_group"),
         });
@@ -82,8 +42,6 @@ impl State {
         let shader = ctx
             .device
             .create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
-        // let swapchain_capabilities = surface.get_capabilities(&adapter);
-        // let swapchain_format = swapchain_capabilities.formats[0];
 
         let stencil_s = wgpu::StencilFaceState {
             compare: wgpu::CompareFunction::Always,
@@ -106,7 +64,6 @@ impl State {
             .fragment("stencil", &[])
             .depth_stencil(false, stencil_s, 1, 1)
             .add_bind_group_layout(&camera_bind_group_layout)
-            .add_bind_group_layout(&texture_bind_group_layout)
             .build(ctx);
 
         let rpipeline = PipelineBuilder::for_render("Render Pipeline", &shader)
@@ -125,7 +82,6 @@ impl State {
             )
             .depth_stencil(true, stencil_r, 1, 1)
             .add_bind_group_layout(&camera_bind_group_layout)
-            .add_bind_group_layout(&texture_bind_group_layout)
             .build(ctx);
 
         let cpipeline = compute::ComputePipeline::new(ctx);
@@ -140,10 +96,7 @@ impl State {
             spipeline,
             cpipeline,
             camera,
-            camera_uniform,
-            camera_buffer,
             camera_bind_group,
-            diffuse_bind_group,
             depth_texture,
         }
     }
@@ -173,7 +126,6 @@ impl renderer::App for State {
         self.spipeline
             .begin_pass("Stencil Pass")
             .add_bind_group(&self.camera_bind_group)
-            .add_bind_group(&self.diffuse_bind_group)
             .add_vertex_buffer(&self.cpipeline.vert_buff)
             .add_index_buffer(&self.cpipeline.ind_buff)
             .pass(
@@ -191,7 +143,6 @@ impl renderer::App for State {
         self.rpipeline
             .begin_pass("Render Pass")
             .add_bind_group(&self.camera_bind_group)
-            .add_bind_group(&self.diffuse_bind_group)
             .add_vertex_buffer(&self.cpipeline.vert_buff)
             .add_index_buffer(&self.cpipeline.ind_buff)
             .set_stencil_reference(1)
@@ -237,13 +188,7 @@ impl renderer::App for State {
     }
 
     fn update(&mut self, ctx: &SurfaceContext) {
-        self.camera.update_camera();
-        self.camera_uniform.update_view_proj(&self.camera);
-        ctx.queue.write_buffer(
-            &self.camera_buffer,
-            0,
-            bytemuck::cast_slice(&[self.camera_uniform]),
-        );
+        self.camera.update_camera(ctx);
     }
 }
 

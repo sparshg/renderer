@@ -54,8 +54,8 @@ impl BindGroupBuilder {
 
     pub fn add_sampler(
         mut self,
-        sampler_binding_type: wgpu::SamplerBindingType,
         visibility: wgpu::ShaderStages,
+        sampler_binding_type: wgpu::SamplerBindingType,
     ) -> Self {
         self.entries.push(wgpu::BindGroupLayoutEntry {
             binding: self.entries.len() as u32,
@@ -86,14 +86,8 @@ impl BindGroupBuilder {
         self
     }
 
-    pub fn add_sampler_filterable(mut self, visibility: wgpu::ShaderStages) -> Self {
-        self.entries.push(wgpu::BindGroupLayoutEntry {
-            binding: self.entries.len() as u32,
-            visibility,
-            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-            count: None,
-        });
-        self
+    pub fn add_sampler_filterable(self, visibility: wgpu::ShaderStages) -> Self {
+        self.add_sampler(visibility, wgpu::SamplerBindingType::Filtering)
     }
 
     pub fn add_texture_float_filterable_d2(

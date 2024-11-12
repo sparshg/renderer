@@ -1,17 +1,22 @@
 use cgmath::{InnerSpace, Matrix3, Point3, Vector3};
+use wgpu::util::DeviceExt;
 use winit::{
     event::{ElementState, KeyEvent, WindowEvent},
     keyboard::{KeyCode, PhysicalKey},
 };
 
+use crate::renderer::AnyContext;
+
 pub struct Camera {
     eye: Point3<f32>,
     forward: Vector3<f32>,
     up: Vector3<f32>,
-    pub aspect: f32,
     fovy: f32,
     znear: f32,
     zfar: f32,
+    pub aspect: f32,
+    uniform: CameraUniform,
+    pub buffer: wgpu::Buffer,
 
     speed: f32,
     is_forward_pressed: bool,
@@ -33,7 +38,15 @@ pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
 );
 
 impl Camera {
-    pub fn new() -> Self {
+    pub fn new(ctx: &impl AnyContext) -> Self {
+        let uniform = CameraUniform::new();
+        let buffer = ctx
+            .device()
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Camera Buffer"),
+                contents: bytemuck::cast_slice(&[uniform]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
         Camera {
             eye: Point3::new(0.0, 0.0, -1.),
             forward: Vector3::new(0.0, 0.0, 1.0),
@@ -51,6 +64,8 @@ impl Camera {
             is_right_pressed: false,
             last_cursor_position: None,
             cursor_down: false,
+            uniform,
+            buffer,
         }
     }
 
@@ -125,7 +140,7 @@ impl Camera {
         }
     }
 
-    pub fn update_camera(&mut self) {
+    pub fn update_camera(&mut self, ctx: &impl AnyContext) {
         use cgmath::InnerSpace;
         if self.is_forward_pressed {
             self.eye += self.forward * self.speed;
@@ -147,6 +162,9 @@ impl Camera {
         if self.is_down_pressed {
             self.eye -= self.up * self.speed;
         }
+        self.uniform.view_proj = self.build_view_projection_matrix().into();
+        ctx.queue()
+            .write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[self.uniform]));
     }
 }
 
@@ -164,9 +182,5 @@ impl CameraUniform {
         Self {
             view_proj: cgmath::Matrix4::identity().into(),
         }
-    }
-
-    pub fn update_view_proj(&mut self, camera: &Camera) {
-        self.view_proj = camera.build_view_projection_matrix().into();
     }
 }
