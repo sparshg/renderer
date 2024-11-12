@@ -1,5 +1,6 @@
 use wgpu::{
-    ColorTargetState, ComputePipeline, DepthStencilState, FragmentState, RenderPipeline, StencilFaceState, VertexBufferLayout,
+    ColorTargetState, ComputePipeline, DepthStencilState, FragmentState, RenderPipeline,
+    StencilFaceState, VertexBufferLayout,
 };
 
 use super::context::AnyContext;
@@ -173,6 +174,7 @@ pub struct PipelinePass<'a, T> {
     bind_groups: Vec<&'a wgpu::BindGroup>,
     vertex_buffers: Vec<&'a wgpu::Buffer>,
     index_buffer: Option<&'a wgpu::Buffer>,
+    stencil_reference: u32,
 }
 
 impl<T> Pipeline<T> {
@@ -193,6 +195,7 @@ impl<T> Pipeline<T> {
             bind_groups: Vec::with_capacity(self.num_bind_groups),
             vertex_buffers: Vec::with_capacity(self.num_vertex_buffers),
             index_buffer: None,
+            stencil_reference: 0,
         }
     }
 }
@@ -210,6 +213,11 @@ impl<'a> PipelinePass<'a, RenderPipeline> {
         self
     }
 
+    pub fn set_stencil_reference(mut self, stencil_reference: u32) -> Self {
+        self.stencil_reference = stencil_reference;
+        self
+    }
+
     pub fn add_index_buffer<'b: 'a>(mut self, index_buffer: &'a wgpu::Buffer) -> Self {
         self.index_buffer = Some(index_buffer);
         self
@@ -221,6 +229,24 @@ impl<'a> PipelinePass<'a, RenderPipeline> {
         color_attachments: &[Option<wgpu::RenderPassColorAttachment<'_>>],
         depth_stencil_attachment: Option<wgpu::RenderPassDepthStencilAttachment<'_>>,
     ) {
+        if self.index_buffer.is_none() {
+            panic!("Assertion Check: Index buffer is required for render pass");
+        }
+        if self.vertex_buffers.len() != self.num_vertex_buffers {
+            panic!(
+                "Assertion Check: {} vertex buffers are required for render pass, {} given",
+                self.num_vertex_buffers,
+                self.vertex_buffers.len()
+            );
+        }
+        if self.bind_groups.len() != self.num_bind_groups {
+            panic!(
+                "Assertion Check: {} bind groups are required for render pass, {} given",
+                self.num_bind_groups,
+                self.bind_groups.len()
+            );
+        }
+
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: self.label.as_deref(),
             color_attachments,
@@ -241,6 +267,7 @@ impl<'a> PipelinePass<'a, RenderPipeline> {
         );
         let indices =
             self.index_buffer.unwrap().size() / std::mem::size_of::<u32>() as wgpu::BufferAddress;
+        render_pass.set_stencil_reference(self.stencil_reference);
         render_pass.draw_indexed(0..indices as u32, 0, 0..1);
     }
 }

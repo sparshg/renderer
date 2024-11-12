@@ -194,6 +194,7 @@ impl renderer::App for State {
             .add_bind_group(&self.diffuse_bind_group)
             .add_vertex_buffer(&self.cpipeline.vert_buff)
             .add_index_buffer(&self.cpipeline.ind_buff)
+            .set_stencil_reference(1)
             .pass(
                 &mut encoder,
                 &[Some(wgpu::RenderPassColorAttachment {
