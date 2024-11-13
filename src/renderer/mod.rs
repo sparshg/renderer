@@ -18,6 +18,7 @@ pub use window::Window;
 
 use crate::camera::Camera;
 use crate::object::QBezier;
+use crate::texture::Texture;
 
 async fn test() {
     let win = window::Window::new("test");
@@ -46,15 +47,22 @@ async fn test() {
 pub trait Renderable {
     const VERTEX_SIZE: usize;
     fn update_buffers(&mut self, ctx: &impl AnyContext);
-    fn compute(&self, pipeline: &Pipeline<ComputePipeline>, encoder: &mut wgpu::CommandEncoder);
+    fn compute(
+        &mut self,
+        ctx: &impl AnyContext,
+        pipeline_pass: PipelinePass<'_, ComputePipeline>,
+        layout: &wgpu::BindGroupLayout,
+        encoder: &mut wgpu::CommandEncoder,
+    );
     fn render(&self, pipeline: &[Pipeline<RenderPipeline>], encoder: &mut wgpu::CommandEncoder);
 }
 
 pub struct Renderer {
     camera: Camera,
+    depth_texture: Texture,
     qbezier_render_pipelines: Vec<Pipeline<RenderPipeline>>,
     qbezier_compute_pipeline: Pipeline<ComputePipeline>,
-    pub qbezier_compute_layout: wgpu::BindGroupLayout,
+    qbezier_compute_layout: wgpu::BindGroupLayout,
 }
 
 impl Renderer {
@@ -123,15 +131,23 @@ impl Renderer {
             )
             .add_bind_group_layout(&camera.bind_group_layout)
             .build(ctx);
+
+        let depth_texture = Texture::create_depth_texture(
+            &ctx.device,
+            (ctx.config.width, ctx.config.height),
+            "Depth Texture",
+        );
+
         Self {
-            camera: Camera::new(ctx),
+            camera,
+            depth_texture,
             qbezier_render_pipelines: vec![spipeline, rpipeline],
             qbezier_compute_pipeline: cpipeline,
             qbezier_compute_layout: compute_bglayout,
         }
     }
 
-    pub fn render_qbezier(&self, ctx: SurfaceContext<'_>, qbezier: &QBezier) {
+    pub fn render_qbezier(&self, ctx: &SurfaceContext<'_>, qbezier: &mut QBezier) {
         let frame = ctx.surface.get_current_texture().unwrap();
         let view = frame
             .texture
@@ -141,17 +157,11 @@ impl Renderer {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
-        qbezier.compute(&self.qbezier_compute_pipeline, &mut encoder);
-        // self.qbezier_compute_pipeline
-        //     .begin_pass("Compute Pass")
-        //     .add_bind_group(&qbezier.compute_bgroup.as_ref().unwrap())
-        //     .pass(
-        //         &mut encoder,
-        //         (
-        //             (((qbezier.points.len() / 2) as f32) / 64.0).ceil() as u32,
-        //             1,
-        //             1,
-        //         ),
-        //     );
+        let pass = self.qbezier_compute_pipeline.begin_pass("Compute Pass");
+        qbezier.compute(ctx, pass, &self.qbezier_compute_layout, &mut encoder);
+
+        let pass = self.qbezier_render_pipelines[0]
+            .begin_pass("Stencil Pass")
+            .add_bind_group(&self.camera.bind_group);
     }
 }

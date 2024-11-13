@@ -25,6 +25,7 @@ pub struct QBezier {
     index_buffer: Option<wgpu::Buffer>,
     compute_bgroup: Option<wgpu::BindGroup>,
     render_bgroup: Option<wgpu::BindGroup>,
+    reinit_buffers: bool,
 }
 
 impl Renderable for QBezier {
@@ -44,13 +45,11 @@ impl Renderable for QBezier {
         data.write(&self.points).unwrap();
         let data: Vec<u8> = data.into_inner();
 
-        let mut needs_reinit = false;
-
         if self.point_buffer.is_none()
             || data.len() != self.point_buffer.as_ref().unwrap().size() as usize
         // TODO: Only recreate when size is increasing?
         {
-            needs_reinit = true;
+            self.reinit_buffers = true;
             self.point_buffer = Some(ctx.device().create_buffer_init(
                 &wgpu::util::BufferInitDescriptor {
                     label: Some("Point Buffer"),
@@ -63,7 +62,7 @@ impl Renderable for QBezier {
                 .write_buffer(self.point_buffer.as_ref().unwrap(), 0, &data);
         }
 
-        if needs_reinit {
+        if self.reinit_buffers {
             self.vertex_buffer = Some(ctx.device().create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Vertex Buffer"),
                 size: (self.points.len() as u64 / 2 * 3 + 1)
@@ -75,7 +74,7 @@ impl Renderable for QBezier {
             }));
         }
 
-        if needs_reinit {
+        if self.reinit_buffers {
             self.index_buffer = Some(ctx.device().create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Vertex Buffer"),
                 size: (self.points.len() as u64 / 2 * 6)
@@ -86,10 +85,17 @@ impl Renderable for QBezier {
                 mapped_at_creation: false,
             }));
         }
+    }
 
-        if needs_reinit {
-            // layout will be Some when pipeline is created
-            self.compute_bgroup = Some(self.compute_bg_layout.as_ref().unwrap().attach(
+    fn compute(
+        &mut self,
+        ctx: &impl AnyContext,
+        pipeline_pass: PipelinePass<'_, ComputePipeline>,
+        layout: &wgpu::BindGroupLayout,
+        encoder: &mut wgpu::CommandEncoder,
+    ) {
+        if self.reinit_buffers {
+            self.compute_bgroup = Some(layout.attach(
                 ctx,
                 "Compute Bind Group",
                 vec![
@@ -99,12 +105,10 @@ impl Renderable for QBezier {
                 ],
             ));
         }
-    }
+        self.reinit_buffers = false;
 
-    fn compute(&self, pipeline: &Pipeline<ComputePipeline>, encoder: &mut wgpu::CommandEncoder) {
-        pipeline
-            .begin_pass("Compute Pass")
-            .add_bind_group(&self.compute_bgroup.as_ref().unwrap())
+        pipeline_pass
+            .add_bind_group(self.compute_bgroup.as_ref().unwrap())
             .pass(
                 encoder,
                 (
