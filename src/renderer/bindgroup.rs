@@ -113,3 +113,35 @@ impl BindGroupBuilder {
             })
     }
 }
+
+pub trait Attach {
+    fn attach(
+        &self,
+        ctx: &impl AnyContext,
+        label: impl Into<String>,
+        entries: Vec<wgpu::BindingResource<'_>>,
+    ) -> wgpu::BindGroup;
+}
+
+impl Attach for wgpu::BindGroupLayout {
+    fn attach(
+        &self,
+        ctx: &impl AnyContext,
+        label: impl Into<String>,
+        entries: Vec<wgpu::BindingResource<'_>>,
+    ) -> wgpu::BindGroup {
+        ctx.device().create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some(&label.into()),
+            layout: self,
+            entries: entries
+                .into_iter()
+                .enumerate()
+                .map(|(i, resource)| wgpu::BindGroupEntry {
+                    binding: i as u32,
+                    resource,
+                })
+                .collect::<Vec<_>>()
+                .as_slice(),
+        })
+    }
+}

@@ -1,4 +1,3 @@
-
 use cgmath::{InnerSpace, Matrix3, Point3, Vector3};
 use wgpu::{util::DeviceExt, BufferSize};
 use winit::{
@@ -6,7 +5,7 @@ use winit::{
     keyboard::{KeyCode, PhysicalKey},
 };
 
-use crate::renderer::{AnyContext, BindGroupBuilder, SurfaceContext};
+use crate::renderer::{AnyContext, Attach, BindGroupBuilder, SurfaceContext};
 
 pub struct Camera {
     eye: Point3<f32>,
@@ -50,18 +49,12 @@ impl Camera {
                 contents: bytemuck::cast_slice(&[uniform]),
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             });
-        let bind_group_layout = BindGroupBuilder::new("Camera Bind Group")
+        let bind_group_layout = BindGroupBuilder::new("Camera Bind Group layout")
             .add_uniform_buffer(wgpu::ShaderStages::VERTEX, BufferSize::new(buffer.size()))
             .build(ctx);
 
-        let bind_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: buffer.as_entire_binding(),
-            }],
-            label: Some("camera_bind_group"),
-        });
+        let bind_group =
+            bind_group_layout.attach(ctx, "Camera Bind Group", vec![buffer.as_entire_binding()]);
 
         Camera {
             eye: Point3::new(0.0, 0.0, -1.),
