@@ -1,4 +1,6 @@
-use cgmath::{BaseFloat, Matrix4, Quaternion, Rad, Rotation3, SquareMatrix, Vector3, Vector4};
+use cgmath::{
+    BaseFloat, ElementWise, Matrix4, Quaternion, Rad, Rotation3, SquareMatrix, Vector3, Vector4,
+};
 use encase::ShaderType;
 use wgpu::{util::DeviceExt, BufferAddress};
 
@@ -32,6 +34,7 @@ pub struct QBezier {
     index_buffer: Option<wgpu::Buffer>,
     compute_bgroup: Option<wgpu::BindGroup>,
     update_points: bool,
+    update_uniforms: bool,
     transform: Transform<f32>,
     uniforms: ObjectUniforms,
     uniforms_buffer: Option<wgpu::Buffer>,
@@ -42,11 +45,11 @@ impl Renderable for QBezier {
     const VERTEX_SIZE: usize = 32;
 
     fn update_render_buffers(&mut self, ctx: &impl AnyContext, layout: &wgpu::BindGroupLayout) {
-        let new_model = self.transform.get_matrix();
-        if self.uniforms.model == new_model && self.uniforms_buffer.is_some() {
+        if !self.update_uniforms {
             return;
         }
-        self.uniforms.model = new_model;
+        self.update_uniforms = false;
+        self.uniforms.model = self.transform.get_matrix();
 
         let mut data = encase::UniformBuffer::new(Vec::new());
         data.write(&self.uniforms).unwrap();
@@ -176,12 +179,32 @@ impl QBezier {
             uniforms_buffer: None,
             render_bgroup: None,
             update_points: true,
+            update_uniforms: true,
             transform: Transform::new(),
             uniforms: ObjectUniforms {
                 model: Matrix4::identity(),
-                color: Vector4::new(1.0, 1.0, 1.0, 1.0),
+                color: Vector4::new(0.0, 1.0, 1.0, 1.0),
             },
         }
+    }
+
+    pub fn shift(&mut self, translation: Vector3<f32>) {
+        self.transform.position += translation;
+        self.update_uniforms = true;
+    }
+
+    pub fn rotate(&mut self, rotation: Quaternion<f32>) {
+        self.transform.rotation = rotation * self.transform.rotation;
+        self.update_uniforms = true;
+    }
+
+    pub fn scale(&mut self, scale: Vector3<f32>) {
+        self.transform.scale.mul_assign_element_wise(scale);
+        self.update_uniforms = true;
+    }
+
+    pub fn color(&mut self, color: Vector4<f32>) {
+        self.uniforms.color = color;
     }
 }
 
@@ -190,7 +213,7 @@ struct Mesh {
     indices: Vec<u32>,
 }
 
-#[derive(ShaderType)]
+#[derive(Debug, ShaderType)]
 struct ObjectUniforms {
     model: Matrix4<f32>,
     color: Vector4<f32>,

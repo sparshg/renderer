@@ -4,7 +4,7 @@ mod object;
 mod renderer;
 mod texture;
 
-use cgmath::Vector3;
+use cgmath::{Rotation3, Vector3, Vector4};
 use compute::POS;
 use object::QBezier;
 use renderer::{Renderer, SurfaceContext};
@@ -14,14 +14,20 @@ pub const VERTEX_STRUCT_SIZE: u64 = 32;
 
 struct State {
     renderer: Renderer,
-    qbezier: QBezier,
+    qbezier: Vec<QBezier>,
 }
 
 impl State {
     async fn new(ctx: &SurfaceContext<'_>) -> Self {
+        let mut q1 = QBezier::new(POS.map(Vector3::from).into_iter().collect());
+        let mut q2 = QBezier::new(POS.map(Vector3::from).into_iter().collect());
+        q1.color(Vector4::new(1.0, 0.0, 0.0, 1.0));
+        // q2.color(Vector4::new(0.0, 1.0, 0.0, 1.0));
+        q1.shift(Vector3::new(-0.4, 0., 0.));
+        // q2.shift(Vector3::new(1.0, 0.0, 0.0));
         Self {
             renderer: Renderer::new(ctx).await,
-            qbezier: QBezier::new(POS.map(Vector3::from).into_iter().collect()),
+            qbezier: vec![q1, q2],
         }
     }
 }
@@ -37,8 +43,10 @@ impl renderer::App for State {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
-        self.renderer
-            .render_qbezier(ctx, &view, &mut encoder, &mut self.qbezier);
+        for qbezier in &mut self.qbezier {
+            self.renderer
+                .render_qbezier(ctx, &view, &mut encoder, qbezier);
+        }
         ctx.queue.submit(Some(encoder.finish()));
 
         frame.present();
