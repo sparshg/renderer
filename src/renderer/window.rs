@@ -9,7 +9,7 @@ use super::context::SurfaceContext;
 
 pub trait App {
     fn resize(&mut self, ctx: &mut SurfaceContext, size: winit::dpi::PhysicalSize<u32>);
-    fn render(&self, ctx: &SurfaceContext) -> Result<(), wgpu::SurfaceError>;
+    fn render(&mut self, ctx: &SurfaceContext) -> Result<(), wgpu::SurfaceError>;
     fn update(&mut self, ctx: &SurfaceContext);
     fn input(&mut self, event: &WindowEvent);
 }
