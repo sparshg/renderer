@@ -4,6 +4,8 @@ mod object;
 mod renderer;
 mod texture;
 
+use std::f32::consts::PI;
+
 use cgmath::{Rotation3, Vector3, Vector4};
 use compute::POS;
 use object::QBezier;
@@ -19,15 +21,16 @@ struct State {
 
 impl State {
     async fn new(ctx: &SurfaceContext<'_>) -> Self {
-        let mut q1 = QBezier::new(POS.map(Vector3::from).into_iter().collect());
-        let mut q2 = QBezier::new(POS.map(Vector3::from).into_iter().collect());
+        let mut q1 = QBezier::square();
+        let mut q2 = QBezier::quadratic_bezier_points_for_arc(2. * PI, 8);
         q1.color(Vector4::new(1.0, 0.0, 0.0, 1.0));
-        // q2.color(Vector4::new(0.0, 1.0, 0.0, 1.0));
-        q1.shift(Vector3::new(-0.4, 0., 0.));
-        // q2.shift(Vector3::new(1.0, 0.0, 0.0));
+        q2.color(Vector4::new(0.0, 1.0, 0.0, 1.0));
+        q1.shift(Vector3::new(-0.1, 0., 0.));
+        q1.scale(Vector3::new(0.75, 0.75, 0.75));
+        q2.scale(Vector3::new(0.5, 0.5, 0.5));
         Self {
             renderer: Renderer::new(ctx).await,
-            qbezier: vec![q1, q2],
+            qbezier: vec![q2, q1],
         }
     }
 }
@@ -43,9 +46,9 @@ impl renderer::App for State {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
-        for qbezier in &mut self.qbezier {
+        for (i, qbezier) in self.qbezier.iter_mut().enumerate() {
             self.renderer
-                .render_qbezier(ctx, &view, &mut encoder, qbezier);
+                .render_qbezier(ctx, &view, &mut encoder, qbezier, i == 0);
         }
         ctx.queue.submit(Some(encoder.finish()));
 

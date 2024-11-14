@@ -9,7 +9,8 @@ pub use bindgroup::{Attach, BindGroupBuilder};
 pub use context::AnyContext;
 pub use context::Context;
 pub use context::SurfaceContext;
-pub use pipeline::{Pipeline, PipelineBuilder};
+use pipeline::IntoPass;
+pub use pipeline::PipelineBuilder;
 use wgpu::CommandEncoder;
 use wgpu::ComputePipeline;
 use wgpu::RenderPipeline;
@@ -51,8 +52,8 @@ pub struct Renderer {
     // TODO: remove pub
     pub camera: Camera,
     pub depth_texture: Texture,
-    qbezier_compute_pipeline: Pipeline<ComputePipeline>,
-    qbezier_render_pipelines: Vec<Pipeline<RenderPipeline>>,
+    qbezier_compute_pipeline: ComputePipeline,
+    qbezier_render_pipelines: Vec<RenderPipeline>,
 }
 
 impl Renderer {
@@ -137,14 +138,11 @@ impl Renderer {
         view: &wgpu::TextureView,
         encoder: &mut CommandEncoder,
         qbezier: &mut QBezier,
+        clear: bool,
     ) {
-        if qbezier.update_compute_buffers(
-            ctx,
-            &self
-                .qbezier_compute_pipeline
-                .pipeline
-                .get_bind_group_layout(0),
-        ) {
+        if qbezier
+            .update_compute_buffers(ctx, &self.qbezier_compute_pipeline.get_bind_group_layout(0))
+        {
             self.qbezier_compute_pipeline
                 .begin_pass("Compute Pass")
                 .add_bind_group(qbezier.get_compute_bgroup())
@@ -153,9 +151,7 @@ impl Renderer {
 
         qbezier.update_render_buffers(
             ctx,
-            &self.qbezier_render_pipelines[0]
-                .pipeline
-                .get_bind_group_layout(1),
+            &self.qbezier_render_pipelines[0].get_bind_group_layout(1),
         );
 
         self.qbezier_render_pipelines[0]
@@ -190,7 +186,11 @@ impl Renderer {
                     view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
+                        load: if clear {
+                            wgpu::LoadOp::Clear(wgpu::Color::BLACK)
+                        } else {
+                            wgpu::LoadOp::Load
+                        },
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -207,7 +207,7 @@ impl Renderer {
 }
 
 impl Renderer {
-    fn make_qbezier_compute_pipeline(ctx: &impl AnyContext) -> Pipeline<ComputePipeline> {
+    fn make_qbezier_compute_pipeline(ctx: &impl AnyContext) -> ComputePipeline {
         let shader = ctx
             .device()
             .create_shader_module(wgpu::include_wgsl!("../compute.wgsl"));

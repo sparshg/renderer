@@ -219,32 +219,42 @@ struct ObjectUniforms {
     color: Vector4<f32>,
 }
 
-// struct Object<T: Renderable> {
-//     renderable: T,
-// }
+impl QBezier {
+    pub fn square() -> Self {
+        let points = vec![
+            Vector3::new(0.5, 0.5, 0.),
+            Vector3::new(0., 0.5, 0.),
+            Vector3::new(-0.5, 0.5, 0.),
+            Vector3::new(-0.5, 0., 0.),
+            Vector3::new(-0.5, -0.5, 0.),
+            Vector3::new(0., -0.5, 0.),
+            Vector3::new(0.5, -0.5, 0.),
+            Vector3::new(0.5, 0., 0.),
+            Vector3::new(0.5, 0.5, 0.),
+        ];
+        Self::new(points)
+    }
+    pub fn quadratic_bezier_points_for_arc(angle: f32, n_components: u32) -> Self {
+        let n_points = 2 * n_components + 1;
+        let angles = (0..n_points).map(|i| i as f32 * angle / (n_points - 1) as f32);
+        let mut points = angles
+            .map(|angle| Vector3::new(angle.cos(), angle.sin(), 0.))
+            .collect::<Vec<_>>();
+        let theta = angle / n_components as f32;
+        let handle_adjust = 1.0 / (theta / 2.0).cos();
 
-// impl Object<QBezier> {
-//     fn new(points: Vec<Vector3<f32>>) -> Self {
-//         Self {
-//             renderable: QBezier {
-//                 points,
-//                 point_buffer: None,
-//                 vertex_buffer: None,
-//                 index_buffer: None,
-//                 compute_bgroup: None,
-//                 uniforms_buffer: None,
-//                 render_bgroup: None,
-//                 update_points: true,
-//                 transform: Transform::new(),
-//                 uniforms: ObjectUniforms {
-//                     model: Matrix4::identity(),
-//                     color: Vector4::new(1.0, 1.0, 1.0, 1.0),
-//                 },
-//             },
-//         }
-//     }
-//     fn update_points(&mut self, ctx: &impl AnyContext, points: Vec<Vector3<f32>>) {
-//         self.renderable.points = points;
-//         self.renderable.update_buffers(ctx);
-//     }
-// }
+        for i in (1..n_points).step_by(2) {
+            points[i as usize] *= handle_adjust;
+        }
+        Self::new(points)
+    }
+}
+
+// def quadratic_bezier_points_for_arc(angle: float, n_components: int = 8):
+//     n_points = 2 * n_components + 1
+//     angles = np.linspace(0, angle, n_points)
+//     points = np.array([np.cos(angles), np.sin(angles), np.zeros(n_points)]).T
+//     # Adjust handles
+//     theta = angle / n_components
+//     points[1::2] /= np.cos(theta / 2)
+//     return points

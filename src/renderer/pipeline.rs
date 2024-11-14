@@ -60,7 +60,7 @@ impl<'a> PipelineBuilder<'a, Compute> {
         Self::new(label, shader)
     }
 
-    pub fn build(self, ctx: &'a impl AnyContext) -> Pipeline<ComputePipeline> {
+    pub fn build(self, ctx: &'a impl AnyContext) -> ComputePipeline {
         let pipeline = ctx
             .device()
             .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
@@ -71,7 +71,7 @@ impl<'a> PipelineBuilder<'a, Compute> {
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
                 cache: None,
             });
-        Pipeline::new(pipeline, self.bind_group_layouts.len(), 0)
+        pipeline
     }
 }
 
@@ -133,7 +133,7 @@ impl<'a> PipelineBuilder<'a, Render> {
         self
     }
 
-    pub fn build(self, ctx: &'a impl AnyContext) -> Pipeline<RenderPipeline> {
+    pub fn build(self, ctx: &'a impl AnyContext) -> RenderPipeline {
         let pipeline = ctx
             .device()
             .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -152,52 +152,43 @@ impl<'a> PipelineBuilder<'a, Render> {
                 multiview: None,
                 cache: None,
             });
-        Pipeline::new(
-            pipeline,
-            self.bind_group_layouts.len(),
-            self.vertex.unwrap().len(),
-        )
+        pipeline
     }
 }
 
-pub struct Pipeline<T> {
-    pub pipeline: T, //TODO: no public
-    num_bind_groups: usize,
-    num_vertex_buffers: usize,
+pub trait IntoPass {
+    fn begin_pass(&self, label: impl Into<String>) -> PipelinePass<'_, Self>
+    where
+        Self: Sized;
 }
+
+macro_rules! impl_into_pass {
+    ($($t:ty),*) => {
+        $(
+            impl IntoPass for $t {
+                fn begin_pass(&self, label: impl Into<String>) -> PipelinePass<'_, Self> {
+                    PipelinePass {
+                        label: Some(label.into()),
+                        pipeline: self,
+                        bind_groups: Vec::new(),
+                        vertex_buffers: Vec::new(),
+                        index_buffer: None,
+                        stencil_reference: 0,
+                    }
+                }
+            }
+        )*
+    };
+}
+impl_into_pass!(RenderPipeline, ComputePipeline);
 
 pub struct PipelinePass<'a, T> {
     label: Option<String>,
     pipeline: &'a T,
-    num_bind_groups: usize,
-    num_vertex_buffers: usize,
     bind_groups: Vec<&'a wgpu::BindGroup>,
     vertex_buffers: Vec<&'a wgpu::Buffer>,
     index_buffer: Option<&'a wgpu::Buffer>,
     stencil_reference: u32,
-}
-
-impl<T> Pipeline<T> {
-    fn new(pipeline: T, num_bind_groups: usize, num_vertex_buffers: usize) -> Self {
-        Self {
-            pipeline,
-            num_bind_groups,
-            num_vertex_buffers,
-        }
-    }
-
-    pub fn begin_pass(&self, label: impl Into<String>) -> PipelinePass<'_, T> {
-        PipelinePass {
-            label: Some(label.into()),
-            pipeline: &self.pipeline,
-            num_bind_groups: self.num_bind_groups,
-            num_vertex_buffers: self.num_vertex_buffers,
-            bind_groups: Vec::with_capacity(self.num_bind_groups),
-            vertex_buffers: Vec::with_capacity(self.num_vertex_buffers),
-            index_buffer: None,
-            stencil_reference: 0,
-        }
-    }
 }
 
 impl<'a, T> PipelinePass<'a, T> {
@@ -229,24 +220,6 @@ impl<'a> PipelinePass<'a, RenderPipeline> {
         color_attachments: &[Option<wgpu::RenderPassColorAttachment<'_>>],
         depth_stencil_attachment: Option<wgpu::RenderPassDepthStencilAttachment<'_>>,
     ) {
-        if self.index_buffer.is_none() {
-            panic!("Assertion Check: Index buffer is required for render pass");
-        }
-        if self.vertex_buffers.len() != self.num_vertex_buffers {
-            panic!(
-                "Assertion Check: {} vertex buffers are required for render pass, {} given",
-                self.num_vertex_buffers,
-                self.vertex_buffers.len()
-            );
-        }
-        if self.bind_groups.len() != self.num_bind_groups {
-            panic!(
-                "Assertion Check: {} bind groups are required for render pass, {} given",
-                self.num_bind_groups,
-                self.bind_groups.len()
-            );
-        }
-
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: self.label.as_deref(),
             color_attachments,
