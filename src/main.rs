@@ -1,37 +1,36 @@
 mod camera;
 mod compute;
-mod object;
+mod geometry;
 mod renderer;
 mod texture;
 
-use std::f32::consts::PI;
 
-use cgmath::{Rotation3, Vector3, Vector4};
-use compute::POS;
-use object::QBezier;
-use renderer::{Renderer, SurfaceContext};
+use geometry::bezier::QBezierPath;
+use renderer::{Scene, SurfaceContext};
 use winit::event::WindowEvent;
 
 pub const VERTEX_STRUCT_SIZE: u64 = 32;
 
 struct State {
-    renderer: Renderer,
-    qbezier: Vec<QBezier>,
+    scene: Scene,
 }
 
 impl State {
     async fn new(ctx: &SurfaceContext<'_>) -> Self {
-        let mut q1 = QBezier::square();
-        let mut q2 = QBezier::quadratic_bezier_points_for_arc(2. * PI, 8);
-        q1.color(Vector4::new(1.0, 0.0, 0.0, 1.0));
-        q2.color(Vector4::new(0.0, 1.0, 0.0, 1.0));
-        q1.shift(Vector3::new(-0.1, 0., 0.));
-        q1.scale(Vector3::new(0.75, 0.75, 0.75));
-        q2.scale(Vector3::new(0.5, 0.5, 0.5));
-        Self {
-            renderer: Renderer::new(ctx).await,
-            qbezier: vec![q2, q1],
-        }
+        let mut scene = Scene::new(ctx);
+        let q1 = QBezierPath::circle();
+        let q2 = QBezierPath::square();
+        scene.add(ctx, q1);
+        scene.add(ctx, q2);
+        // let mut q1 = QBezier::square();
+        // let mut q1 = QBezier::quadratic_bezier_points_for_arc(2. * PI, 8);
+        // let mut q2 = QBezier::quadratic_bezier_points_for_arc(2. * PI, 16);
+        // q1.color(Vector4::new(0.8, 0.05, 0.05, 0.9));
+        // q2.color(Vector4::new(0.05, 0.8, 0.05, 0.9));
+        // // q1.shift(Vector3::new(-0.1, 0., 0.));
+        // q1.scale(Vector3::new(0.5, 0.5, 0.5));
+        // q2.scale(Vector3::new(0.5, 0.5, 0.5));
+        Self { scene }
     }
 }
 
@@ -41,26 +40,15 @@ impl renderer::App for State {
         let view = frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = ctx
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            });
-        for (i, qbezier) in self.qbezier.iter_mut().enumerate() {
-            self.renderer
-                .render_qbezier(ctx, &view, &mut encoder, qbezier, i == 0);
-        }
-        ctx.queue.submit(Some(encoder.finish()));
-
+        self.scene.render(ctx, &view);
         frame.present();
 
         Ok(())
     }
 
-    fn resize(&mut self, ctx: &mut SurfaceContext, new_size: winit::dpi::PhysicalSize<u32>) {
-        ctx.resize(new_size);
-        self.renderer.camera.aspect = ctx.config.width as f32 / ctx.config.height as f32;
-        self.renderer.depth_texture = texture::Texture::create_depth_texture(
+    fn resize(&mut self, ctx: &mut SurfaceContext) {
+        self.scene.camera.aspect = ctx.config.width as f32 / ctx.config.height as f32;
+        self.scene.depth_texture = texture::Texture::create_depth_texture(
             &ctx.device,
             (ctx.config.width, ctx.config.height),
             "depth_texture",
@@ -69,11 +57,11 @@ impl renderer::App for State {
     }
 
     fn input(&mut self, event: &WindowEvent) {
-        self.renderer.camera.process_inputs(event)
+        self.scene.camera.process_inputs(event)
     }
 
     fn update(&mut self, ctx: &SurfaceContext) {
-        self.renderer.camera.update_camera(ctx);
+        self.scene.camera.update_camera(ctx);
     }
 }
 

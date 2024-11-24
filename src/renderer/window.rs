@@ -8,7 +8,7 @@ use winit::{
 use super::context::SurfaceContext;
 
 pub trait App {
-    fn resize(&mut self, ctx: &mut SurfaceContext, size: winit::dpi::PhysicalSize<u32>);
+    fn resize(&mut self, ctx: &mut SurfaceContext);
     fn render(&mut self, ctx: &SurfaceContext) -> Result<(), wgpu::SurfaceError>;
     fn update(&mut self, ctx: &SurfaceContext);
     fn input(&mut self, event: &WindowEvent);
@@ -46,7 +46,7 @@ impl Window {
                 match event {
                     WindowEvent::Resized(new_size) => {
                         ctx.resize(new_size);
-                        app.resize(ctx, new_size);
+                        app.resize(ctx);
                         self.window.request_redraw();
                     }
                     WindowEvent::CloseRequested => target.exit(),
