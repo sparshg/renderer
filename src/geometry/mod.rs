@@ -1,6 +1,7 @@
-use cgmath::{ElementWise, Matrix4, One, Quaternion, Vector3, Vector4, Zero};
+use std::any::Any;
 
-use crate::renderer::SurfaceContext;
+use cgmath::{Matrix4, One, Quaternion, Vector3, Vector4, Zero};
+
 
 pub mod bezier;
 pub mod shapes;
@@ -25,76 +26,47 @@ impl Transform {
     }
 }
 
-pub trait ShapeBuffer {
-    fn create_render_buffers(&mut self, ctx: &SurfaceContext, layout: &wgpu::BindGroupLayout);
-    fn update_compute_buffers(
-        &mut self,
-        ctx: &SurfaceContext,
-        layout: &wgpu::BindGroupLayout,
-    ) -> bool;
-    fn update_render_buffers(&mut self, ctx: &SurfaceContext);
-    fn num_compute_workgroups(&self) -> u32;
+pub trait Renderable {
+    fn qbezier(&self) -> &bezier::QBezierPath;
+    fn qbezier_mut(&mut self) -> &mut bezier::QBezierPath;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
-
-pub enum Shape {
-    Square(shapes::Square),
-    Circle(shapes::Circle),
-}
-
-macro_rules! match_variants {
-    ($enum:expr, $field:ident, mut) => {
-        match $enum {
-            Self::Square(s) => &mut s.$field,
-            Self::Circle(s) => &mut s.$field,
-        }
-    };
-    ($enum:expr, $field:ident, ref) => {
-        match $enum {
-            Self::Square(s) => &s.$field,
-            Self::Circle(s) => &s.$field,
-        }
-    };
-    ($enum:expr, $field:ident, $method:ident $(, $args:expr)*) => {
-        match $enum {
-            Self::Square(s) => s.$field.$method($($args),*),
-            Self::Circle(s) => s.$field.$method($($args),*),
-        }
-    };
-}
-
-impl Shape {
-    pub fn square(side: f32) -> Self {
-        Self::Square(shapes::Square::new(side))
+impl<T: 'static> Renderable for Shape<T> {
+    fn qbezier(&self) -> &bezier::QBezierPath {
+        &self.qbezier
     }
-    pub fn circle(radius: f32) -> Self {
-        Self::Circle(shapes::Circle::new(radius))
+    fn qbezier_mut(&mut self) -> &mut bezier::QBezierPath {
+        &mut self.qbezier
     }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+pub struct Shape<T> {
+    pub shape: T,
+    pub qbezier: bezier::QBezierPath,
+}
+
+impl<T> Shape<T> {
+    #[inline]
     pub fn rotate(&mut self, rotation: Quaternion<f32>) -> &mut Self {
-        match_variants!(self, qbezier, rotate, rotation);
+        self.qbezier.rotate(rotation);
         self
     }
+    #[inline]
     pub fn scale(&mut self, scale: impl Into<Vector3<f32>>) -> &mut Self {
-        match_variants!(self, qbezier, scale, scale.into());
+        self.qbezier.scale(scale.into());
         self
     }
+    #[inline]
     pub fn shift(&mut self, shift: impl Into<Vector3<f32>>) -> &mut Self {
-        match_variants!(self, qbezier, shift, shift.into());
+        self.qbezier.shift(shift.into());
         self
     }
+    #[inline]
     pub fn color(&mut self, color: impl Into<Vector4<f32>>) -> &mut Self {
-        match_variants!(self, qbezier, color, color.into());
+        self.qbezier.color(color.into());
         self
-    }
-    pub fn qbezier_ref(&self) -> &bezier::QBezierPath {
-        match_variants!(self, qbezier, ref)
-    }
-    pub fn qbezier_mut(&mut self) -> &mut bezier::QBezierPath {
-        match_variants!(self, qbezier, mut)
-    }
-    pub fn get_type(&self) -> Type {
-        match self {
-            Self::Square(_) => Type::Square,
-            Self::Circle(_) => Type::Circle,
-        }
     }
 }

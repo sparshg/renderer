@@ -1,15 +1,10 @@
-use std::{
-    f32::consts::PI,
-    ops::{Deref, DerefMut},
-};
 
-use super::{ShapeBuffer, Transform};
+use super::Transform;
 use crate::renderer::{
     AnyContext, Attach, ComputeObject, ObjectUniforms, RenderObject, SurfaceContext,
 };
 use cgmath::{ElementWise, Quaternion, Vector3, Vector4};
 use wgpu::{util::DeviceExt, BufferAddress};
-
 pub struct QBezierPath {
     points: Vec<Vector3<f32>>,
     transform: Transform,
@@ -70,8 +65,8 @@ impl QBezierPath {
     }
 }
 
-impl ShapeBuffer for QBezierPath {
-    fn create_render_buffers(&mut self, ctx: &SurfaceContext, layout: &wgpu::BindGroupLayout) {
+impl QBezierPath {
+    pub fn create_render_buffers(&mut self, ctx: &SurfaceContext, layout: &wgpu::BindGroupLayout) {
         let index_buffer = self.create_index_buffer(ctx);
         let vertex_buffer = self.create_vertex_buffer(ctx);
         let uniforms = ObjectUniforms::default();
@@ -105,7 +100,7 @@ impl ShapeBuffer for QBezierPath {
         });
     }
 
-    fn update_compute_buffers(
+    pub fn update_compute_buffers(
         &mut self,
         ctx: &SurfaceContext,
         layout: &wgpu::BindGroupLayout,
@@ -168,7 +163,7 @@ impl ShapeBuffer for QBezierPath {
         true
     }
 
-    fn update_render_buffers(&mut self, ctx: &SurfaceContext) {
+    pub fn update_render_buffers(&mut self, ctx: &SurfaceContext) {
         let render_object = self
             .render_object
             .as_mut()
@@ -189,42 +184,7 @@ impl ShapeBuffer for QBezierPath {
             .write_buffer(&render_object.uniform_buffer, 0, &data);
     }
 
-    fn num_compute_workgroups(&self) -> u32 {
+    pub fn num_compute_workgroups(&self) -> u32 {
         (((self.points.len() / 2) as f32) / 64.0).ceil() as u32
     }
 }
-
-// impl QBezierPath<Circle> {
-//     pub fn circle() -> Self {
-//         let angle = 2. * PI;
-//         let n_components = 8;
-//         let n_points = 2 * n_components + 1;
-//         let angles = (0..n_points).map(|i| i as f32 * angle / (n_points - 1) as f32);
-//         let mut points = angles
-//             .map(|angle| Vector3::new(angle.cos(), angle.sin(), 0.))
-//             .collect::<Vec<_>>();
-//         let theta = angle / n_components as f32;
-//         let handle_adjust = 1.0 / (theta / 2.0).cos();
-
-//         for i in (1..n_points).step_by(2) {
-//             points[i as usize] *= handle_adjust;
-//         }
-//         Self::new(points)
-//     }
-// }
-// impl QBezierPath<Square> {
-//     pub fn square() -> Self {
-//         let points = vec![
-//             Vector3::new(1., 1., 0.),
-//             Vector3::new(0., 1., 0.),
-//             Vector3::new(-1., 1., 0.),
-//             Vector3::new(-1., 0., 0.),
-//             Vector3::new(-1., -1., 0.),
-//             Vector3::new(0., -1., 0.),
-//             Vector3::new(1., -1., 0.),
-//             Vector3::new(1., 0., 0.),
-//             Vector3::new(1., 1., 0.),
-//         ];
-//         Self::new(points)
-//     }
-// }

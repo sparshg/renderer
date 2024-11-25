@@ -26,8 +26,8 @@ pub use window::App;
 pub use window::Window;
 
 use crate::geometry::bezier::QBezierPath;
+use crate::geometry::Renderable;
 use crate::geometry::Shape;
-use crate::geometry::ShapeBuffer;
 use crate::texture::Texture;
 
 // pub enum PipelineType {
@@ -69,11 +69,18 @@ pub struct Id<T> {
     pub id: u32,
     _marker: std::marker::PhantomData<T>,
 }
+impl<T> Clone for Id<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for Id<T> {}
 pub struct Scene {
     // ctx: &'a SurfaceContext<'a>,
     pub camera: Camera,
     pub depth_texture: Texture,
-    pub objects: HashMap<u32, Shape>,
+    pub objects: HashMap<u32, Box<dyn Renderable>>,
     qbezier_renderer: QBezierRenderer,
     // mesh_renderer: MeshRenderer,
 }
@@ -103,8 +110,8 @@ impl Scene {
         }
     }
 
-    pub fn add<T>(&mut self, ctx: &SurfaceContext, mut shape: Shape) -> Id<T> {
-        shape.qbezier_mut().create_render_buffers(
+    pub fn add<T: 'static>(&mut self, ctx: &SurfaceContext, mut shape: Shape<T>) -> Id<T> {
+        shape.qbezier.create_render_buffers(
             ctx,
             &self
                 .qbezier_renderer
@@ -112,7 +119,7 @@ impl Scene {
                 .get_bind_group_layout(1),
         );
         let id = self.objects.len() as u32;
-        self.objects.insert(id, shape);
+        self.objects.insert(id, Box::new(shape));
         Id {
             id,
             _marker: std::marker::PhantomData,
@@ -147,11 +154,10 @@ impl Scene {
         ctx.queue().submit(std::iter::once(encoder.finish()));
     }
 
-    pub fn modify<T>(&mut self, id: Id<T>, f: impl FnOnce(&mut T)) {
+    pub fn modify<T: 'static>(&mut self, id: Id<T>, f: impl FnOnce(&mut Shape<T>)) {
         let ob = self.objects.get_mut(&id.id).expect("Object not found");
-        if let Shape::T(c) = ob {
-            f(c);
-        }
+        let ob = ob.as_any_mut().downcast_mut::<Shape<T>>().unwrap();
+        f(ob);
     }
 }
 

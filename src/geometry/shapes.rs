@@ -1,14 +1,13 @@
 use cgmath::Vector3;
 
 use super::{bezier::QBezierPath, Shape};
-use cgmath::{ElementWise, Quaternion, Vector4};
+
 pub struct Square {
     side: f32,
-    pub qbezier: QBezierPath,
 }
 
 impl Square {
-    pub fn new(side: f32) -> Self {
+    pub fn new(side: f32) -> Shape<Square> {
         let points = [
             (1., 1., 0.),
             (0., 1., 0.),
@@ -23,8 +22,8 @@ impl Square {
         .into_iter()
         .map(|(x, y, z)| Vector3::new(x, y, z) * side * 0.5)
         .collect();
-        Self {
-            side,
+        Shape {
+            shape: Square { side },
             qbezier: QBezierPath::new(points),
         }
     }
@@ -32,11 +31,10 @@ impl Square {
 
 pub struct Circle {
     radius: f32,
-    pub qbezier: QBezierPath,
 }
 
 impl Circle {
-    pub fn new(radius: f32) -> Self {
+    pub fn new(radius: f32) -> Shape<Circle> {
         let angle = 2. * std::f32::consts::PI;
         let n_components = 8;
         let n_points = 2 * n_components + 1;
@@ -50,8 +48,8 @@ impl Circle {
         for i in (1..n_points).step_by(2) {
             points[i as usize] *= handle_adjust;
         }
-        Self {
-            radius,
+        Shape {
+            shape: Circle { radius },
             qbezier: QBezierPath::new(points),
         }
     }
