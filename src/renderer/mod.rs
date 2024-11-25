@@ -1,13 +1,14 @@
 // use context::SurfaceWrapper;
 
 mod bindgroup;
+mod camera;
 mod context;
 mod pipeline;
 mod window;
-
 use std::collections::HashMap;
 
 pub use bindgroup::{Attach, BindGroupBuilder};
+use camera::Camera;
 use cgmath::Matrix4;
 use cgmath::SquareMatrix;
 use cgmath::Vector4;
@@ -24,9 +25,8 @@ use wgpu::ShaderStages;
 pub use window::App;
 pub use window::Window;
 
-use crate::camera::Camera;
 use crate::geometry::bezier::QBezierPath;
-use crate::geometry::Shape;
+use crate::geometry::bezier::Shape;
 use crate::geometry::ShapeBuffer;
 use crate::texture::Texture;
 
@@ -69,10 +69,19 @@ pub struct Scene {
     // ctx: &'a SurfaceContext<'a>,
     pub camera: Camera,
     pub depth_texture: Texture,
-    pub objects: HashMap<u32, QBezierPath>,
+    pub objects: HashMap<u32, QBezierPath<dyn Shape>>,
     qbezier_renderer: QBezierRenderer,
     // mesh_renderer: MeshRenderer,
 }
+
+// #[macro_export]
+// macro_rules! add {
+//     ($scene:ident, $ctx:ident, $($shape:ident),*) => {
+//         $(
+//             let $shape = $scene.add($ctx, $shape);
+//         )*
+//     };
+// }
 
 impl Scene {
     pub fn new(ctx: &SurfaceContext) -> Self {
@@ -90,7 +99,7 @@ impl Scene {
         }
     }
 
-    pub fn add(&mut self, ctx: &SurfaceContext, mut shape: QBezierPath) -> u32 {
+    pub fn add(&mut self, ctx: &SurfaceContext, mut shape: QBezierPath<dyn Shape>) -> u32 {
         shape.create_render_buffers(
             ctx,
             &self
@@ -129,6 +138,10 @@ impl Scene {
         }
 
         ctx.queue().submit(std::iter::once(encoder.finish()));
+    }
+
+    pub fn modify(&mut self, id: u32, f: impl FnOnce(&mut QBezierPath<dyn Shape>)) {
+        self.objects.get_mut(&id).map(f).expect("Object not found");
     }
 }
 
@@ -220,7 +233,7 @@ impl QBezierRenderer {
         depth_view: &wgpu::TextureView,
         cam_bind_group: &wgpu::BindGroup,
         encoder: &mut CommandEncoder,
-        qbezier: &mut QBezierPath,
+        qbezier: &mut QBezierPath<dyn Shape>,
         clear: bool,
     ) {
         if qbezier.update_compute_buffers(ctx, &self.compute_pipeline.get_bind_group_layout(0)) {

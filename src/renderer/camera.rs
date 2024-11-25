@@ -57,14 +57,14 @@ impl Camera {
             bind_group_layout.attach(ctx, "Camera Bind Group", vec![buffer.as_entire_binding()]);
 
         Camera {
-            eye: Point3::new(0.0, 0.0, -1.),
+            eye: Point3::new(0.0, 0.0, -3.),
             forward: Vector3::new(0.0, 0.0, 1.0),
             up: Vector3::unit_y(),
             aspect: 1.0,
             fovy: 45.0,
             znear: 0.1,
             zfar: 100.0,
-            speed: 0.02,
+            speed: 0.04,
             is_up_pressed: false,
             is_down_pressed: false,
             is_forward_pressed: false,

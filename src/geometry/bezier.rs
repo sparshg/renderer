@@ -1,29 +1,56 @@
-use std::f32::consts::PI;
+use std::{
+    f32::consts::PI,
+    ops::{Deref, DerefMut},
+};
 
-use super::{Path, Shape, ShapeBuffer, Transform};
+use super::{ShapeBuffer, Transform};
 use crate::renderer::{
     AnyContext, Attach, ComputeObject, ObjectUniforms, RenderObject, SurfaceContext,
 };
 use cgmath::{ElementWise, Quaternion, Vector3, Vector4};
-use encase::ShaderType;
 use wgpu::{util::DeviceExt, BufferAddress};
 
-pub struct QBezierPath {
+pub trait Shape {}
+pub struct Circle;
+pub struct Square;
+impl Shape for Circle {}
+impl Shape for Square {}
+
+pub struct QBezierPath<T: ?Sized> {
     points: Vec<Vector3<f32>>,
     transform: Transform,
+    color: Vector4<f32>,
     pub render_object: Option<RenderObject>,
     pub compute_object: Option<ComputeObject>,
+    marker: std::marker::PhantomData<T>,
 }
 
-impl QBezierPath {
+impl<T: ?Sized> QBezierPath<T> {
+    pub fn rotate(&mut self, rotation: Quaternion<f32>) {
+        self.transform.rotation = rotation * self.transform.rotation;
+    }
+    pub fn scale(&mut self, scale: impl Into<Vector3<f32>>) {
+        self.transform.scale.mul_assign_element_wise(scale.into());
+    }
+    pub fn shift(&mut self, offset: impl Into<Vector3<f32>>) {
+        self.transform.position += offset.into();
+    }
+    pub fn color(&mut self, color: impl Into<Vector4<f32>>) {
+        self.color = color.into();
+    }
+}
+
+impl<T: ?Sized> QBezierPath<T> {
     const VERTEX_SIZE: usize = 32;
 
     fn new(points: Vec<Vector3<f32>>) -> Self {
         Self {
             points,
             transform: Transform::new(),
+            color: Vector4::new(1.0, 1.0, 1.0, 1.0),
             compute_object: None,
             render_object: None,
+            marker: std::marker::PhantomData,
         }
     }
 
@@ -49,41 +76,9 @@ impl QBezierPath {
             mapped_at_creation: false,
         })
     }
-
-    pub fn circle() -> Self {
-        let angle = 2. * PI;
-        let n_components = 8;
-        let n_points = 2 * n_components + 1;
-        let angles = (0..n_points).map(|i| i as f32 * angle / (n_points - 1) as f32);
-        let mut points = angles
-            .map(|angle| Vector3::new(angle.cos(), angle.sin(), 0.))
-            .collect::<Vec<_>>();
-        let theta = angle / n_components as f32;
-        let handle_adjust = 1.0 / (theta / 2.0).cos();
-
-        for i in (1..n_points).step_by(2) {
-            points[i as usize] *= handle_adjust;
-        }
-        Self::new(points)
-    }
-
-    pub fn square() -> Self {
-        let points = vec![
-            Vector3::new(0.5, 0.5, 0.),
-            Vector3::new(0., 0.5, 0.),
-            Vector3::new(-0.5, 0.5, 0.),
-            Vector3::new(-0.5, 0., 0.),
-            Vector3::new(-0.5, -0.5, 0.),
-            Vector3::new(0., -0.5, 0.),
-            Vector3::new(0.5, -0.5, 0.),
-            Vector3::new(0.5, 0., 0.),
-            Vector3::new(0.5, 0.5, 0.),
-        ];
-        Self::new(points)
-    }
 }
 
-impl ShapeBuffer for QBezierPath {
+impl<T: ?Sized> ShapeBuffer for QBezierPath<T> {
     fn create_render_buffers(&mut self, ctx: &SurfaceContext, layout: &wgpu::BindGroupLayout) {
         let index_buffer = self.create_index_buffer(ctx);
         let vertex_buffer = self.create_vertex_buffer(ctx);
@@ -104,11 +99,7 @@ impl ShapeBuffer for QBezierPath {
         let bind_group = layout.attach(
             ctx,
             "QBezier Bind Group",
-            vec![
-                vertex_buffer.as_entire_binding(),
-                index_buffer.as_entire_binding(),
-                uniform_buffer.as_entire_binding(),
-            ],
+            vec![uniform_buffer.as_entire_binding()],
         );
 
         self.render_object = Some(RenderObject {
@@ -195,6 +186,7 @@ impl ShapeBuffer for QBezierPath {
         }
 
         render_object.uniforms.model = self.transform.get_matrix();
+        render_object.uniforms.color = self.color;
 
         let mut data = encase::UniformBuffer::new(Vec::new());
         data.write(&render_object.uniforms).unwrap();
@@ -210,34 +202,37 @@ impl ShapeBuffer for QBezierPath {
     }
 }
 
-impl Shape for QBezierPath {
-    fn shift(&mut self, offset: Vector3<f32>) {
-        self.transform.position += offset;
-        self.render_object.as_mut().map(|o| o.update = true);
-    }
-    fn rotate(&mut self, rotation: Quaternion<f32>) {
-        self.transform.rotation = rotation * self.transform.rotation;
-        self.render_object.as_mut().map(|o| o.update = true);
-    }
-    fn scale(&mut self, scale: Vector3<f32>) {
-        self.transform.scale.mul_assign_element_wise(scale);
-        self.render_object.as_mut().map(|o| o.update = true);
-    }
-    fn color(&mut self, color: Vector4<f32>) {
-        // self.uniforms.color = color.into();
-        self.render_object.as_mut().map(|o| o.update = true);
-    }
-    // fn get_render_object(&self) -> Weak<RefCell<RenderObject>> {
-    //     Rc::downgrade(
-    //         self.render_object
-    //             .as_ref()
-    //             .expect("Render Object not initialized. Create render buffers first"),
-    //     )
-    // }
-}
+impl QBezierPath<Circle> {
+    pub fn circle() -> Self {
+        let angle = 2. * PI;
+        let n_components = 8;
+        let n_points = 2 * n_components + 1;
+        let angles = (0..n_points).map(|i| i as f32 * angle / (n_points - 1) as f32);
+        let mut points = angles
+            .map(|angle| Vector3::new(angle.cos(), angle.sin(), 0.))
+            .collect::<Vec<_>>();
+        let theta = angle / n_components as f32;
+        let handle_adjust = 1.0 / (theta / 2.0).cos();
 
-impl Path for QBezierPath {
-    fn points(&self) -> &[Vector3<f32>] {
-        &self.points
+        for i in (1..n_points).step_by(2) {
+            points[i as usize] *= handle_adjust;
+        }
+        Self::new(points)
+    }
+}
+impl QBezierPath<Square> {
+    pub fn square() -> Self {
+        let points = vec![
+            Vector3::new(1., 1., 0.),
+            Vector3::new(0., 1., 0.),
+            Vector3::new(-1., 1., 0.),
+            Vector3::new(-1., 0., 0.),
+            Vector3::new(-1., -1., 0.),
+            Vector3::new(0., -1., 0.),
+            Vector3::new(1., -1., 0.),
+            Vector3::new(1., 0., 0.),
+            Vector3::new(1., 1., 0.),
+        ];
+        Self::new(points)
     }
 }

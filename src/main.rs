@@ -1,11 +1,10 @@
-mod camera;
 mod compute;
 mod geometry;
 mod renderer;
 mod texture;
 
-
-use geometry::bezier::QBezierPath;
+use cgmath::{Vector3, Vector4};
+use geometry::bezier::{QBezierPath, Shape};
 use renderer::{Scene, SurfaceContext};
 use winit::event::WindowEvent;
 
@@ -16,20 +15,23 @@ struct State {
 }
 
 impl State {
-    async fn new(ctx: &SurfaceContext<'_>) -> Self {
+    fn new(ctx: &SurfaceContext<'_>) -> Self {
         let mut scene = Scene::new(ctx);
-        let q1 = QBezierPath::circle();
+        let mut q1 = QBezierPath::circle();
         let q2 = QBezierPath::square();
-        scene.add(ctx, q1);
-        scene.add(ctx, q2);
+        // q1.color(Vector4::new(0.8, 0.05, 0.05, 0.9));
+        // q1.scale(Vector3::new(0.5, 0.5, 0.5));
+        // q1.shift(Vector3::new(-0.1, 0., 0.));
+        // q2.scale(Vector3::new(0.5, 0.5, 0.5));
+        // add!(scene, ctx, q1);
+        let q1 = scene.add(ctx, q1);
+
+        // scene.modify(q1, |q| q.shift(Vector3::new(0.0, 0.5, 0.)));
+
         // let mut q1 = QBezier::square();
         // let mut q1 = QBezier::quadratic_bezier_points_for_arc(2. * PI, 8);
         // let mut q2 = QBezier::quadratic_bezier_points_for_arc(2. * PI, 16);
-        // q1.color(Vector4::new(0.8, 0.05, 0.05, 0.9));
         // q2.color(Vector4::new(0.05, 0.8, 0.05, 0.9));
-        // // q1.shift(Vector3::new(-0.1, 0., 0.));
-        // q1.scale(Vector3::new(0.5, 0.5, 0.5));
-        // q2.scale(Vector3::new(0.5, 0.5, 0.5));
         Self { scene }
     }
 }
@@ -70,7 +72,7 @@ async fn run() {
     env_logger::init();
     let w = window.get_window();
     let mut ctx = renderer::Context::init().await.attach_window(&w);
-    let app = State::new(&ctx).await;
+    let app = State::new(&ctx);
     window.run(&mut ctx, app);
 }
 pub fn main() {

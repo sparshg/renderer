@@ -1,5 +1,4 @@
-
-use cgmath::{Matrix4, One, Quaternion, Vector3, Vector4, Zero};
+use cgmath::{ElementWise, Matrix4, One, Quaternion, Vector3, Zero};
 
 use crate::renderer::SurfaceContext;
 
@@ -26,7 +25,7 @@ impl Transform {
     }
 }
 
-pub trait ShapeBuffer: Shape {
+pub trait ShapeBuffer {
     fn create_render_buffers(&mut self, ctx: &SurfaceContext, layout: &wgpu::BindGroupLayout);
     fn update_compute_buffers(
         &mut self,
@@ -35,23 +34,4 @@ pub trait ShapeBuffer: Shape {
     ) -> bool;
     fn update_render_buffers(&mut self, ctx: &SurfaceContext);
     fn num_compute_workgroups(&self) -> u32;
-}
-
-pub trait Shape {
-    // fn get_render_object(&self) -> Weak<RefCell<RenderObject>>;
-    fn shift(&mut self, offset: Vector3<f32>);
-    fn rotate(&mut self, rotation: Quaternion<f32>);
-    fn scale(&mut self, scale: Vector3<f32>);
-    fn color(&mut self, color: Vector4<f32>);
-    // fn bounds(&self) -> (Vector3<f32>, Vector3<f32>); // min, max
-}
-
-pub trait Path: Shape {
-    fn points(&self) -> &[Vector3<f32>];
-}
-
-pub trait Mesh: Shape {
-    fn vertices(&self) -> &[Vector3<f32>];
-    fn normals(&self) -> &[Vector3<f32>];
-    fn indices(&self) -> &[u32];
 }
