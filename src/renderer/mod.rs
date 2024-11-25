@@ -26,7 +26,7 @@ pub use window::App;
 pub use window::Window;
 
 use crate::geometry::bezier::QBezierPath;
-use crate::geometry::bezier::Shape;
+use crate::geometry::Shape;
 use crate::geometry::ShapeBuffer;
 use crate::texture::Texture;
 
@@ -65,23 +65,27 @@ pub struct ComputeObject {
     pub update: bool,
 }
 
+pub struct Id<T> {
+    pub id: u32,
+    _marker: std::marker::PhantomData<T>,
+}
 pub struct Scene {
     // ctx: &'a SurfaceContext<'a>,
     pub camera: Camera,
     pub depth_texture: Texture,
-    pub objects: HashMap<u32, QBezierPath<dyn Shape>>,
+    pub objects: HashMap<u32, Shape>,
     qbezier_renderer: QBezierRenderer,
     // mesh_renderer: MeshRenderer,
 }
 
-// #[macro_export]
-// macro_rules! add {
-//     ($scene:ident, $ctx:ident, $($shape:ident),*) => {
-//         $(
-//             let $shape = $scene.add($ctx, $shape);
-//         )*
-//     };
-// }
+#[macro_export]
+macro_rules! add {
+    ($scene:ident, $ctx:ident, $($shape:ident),*) => {
+        $(
+            let $shape = $scene.add($ctx, $shape);
+        )*
+    };
+}
 
 impl Scene {
     pub fn new(ctx: &SurfaceContext) -> Self {
@@ -99,8 +103,8 @@ impl Scene {
         }
     }
 
-    pub fn add(&mut self, ctx: &SurfaceContext, mut shape: QBezierPath<dyn Shape>) -> u32 {
-        shape.create_render_buffers(
+    pub fn add<T>(&mut self, ctx: &SurfaceContext, mut shape: Shape) -> Id<T> {
+        shape.qbezier_mut().create_render_buffers(
             ctx,
             &self
                 .qbezier_renderer
@@ -109,7 +113,10 @@ impl Scene {
         );
         let id = self.objects.len() as u32;
         self.objects.insert(id, shape);
-        id
+        Id {
+            id,
+            _marker: std::marker::PhantomData,
+        }
     }
 
     pub fn render(&mut self, ctx: &SurfaceContext, view: &wgpu::TextureView) {
@@ -126,7 +133,7 @@ impl Scene {
                 &self.depth_texture.view,
                 &self.camera.bind_group,
                 &mut encoder,
-                object,
+                object.qbezier_mut(),
                 false,
             );
             // }
@@ -140,8 +147,11 @@ impl Scene {
         ctx.queue().submit(std::iter::once(encoder.finish()));
     }
 
-    pub fn modify(&mut self, id: u32, f: impl FnOnce(&mut QBezierPath<dyn Shape>)) {
-        self.objects.get_mut(&id).map(f).expect("Object not found");
+    pub fn modify<T>(&mut self, id: Id<T>, f: impl FnOnce(&mut T)) {
+        let ob = self.objects.get_mut(&id.id).expect("Object not found");
+        if let Shape::T(c) = ob {
+            f(c);
+        }
     }
 }
 
@@ -233,7 +243,7 @@ impl QBezierRenderer {
         depth_view: &wgpu::TextureView,
         cam_bind_group: &wgpu::BindGroup,
         encoder: &mut CommandEncoder,
-        qbezier: &mut QBezierPath<dyn Shape>,
+        qbezier: &mut QBezierPath,
         clear: bool,
     ) {
         if qbezier.update_compute_buffers(ctx, &self.compute_pipeline.get_bind_group_layout(0)) {

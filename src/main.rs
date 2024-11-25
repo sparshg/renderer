@@ -4,7 +4,11 @@ mod renderer;
 mod texture;
 
 use cgmath::{Vector3, Vector4};
-use geometry::bezier::{QBezierPath, Shape};
+use geometry::{
+    bezier::QBezierPath,
+    shapes::{Circle, Square},
+    Shape,
+};
 use renderer::{Scene, SurfaceContext};
 use winit::event::WindowEvent;
 
@@ -17,16 +21,18 @@ struct State {
 impl State {
     fn new(ctx: &SurfaceContext<'_>) -> Self {
         let mut scene = Scene::new(ctx);
-        let mut q1 = QBezierPath::circle();
-        let q2 = QBezierPath::square();
+        let mut q1 = Shape::square(2.);
+        let q2 = Shape::circle(1.);
         // q1.color(Vector4::new(0.8, 0.05, 0.05, 0.9));
         // q1.scale(Vector3::new(0.5, 0.5, 0.5));
         // q1.shift(Vector3::new(-0.1, 0., 0.));
         // q2.scale(Vector3::new(0.5, 0.5, 0.5));
-        // add!(scene, ctx, q1);
-        let q1 = scene.add(ctx, q1);
+        add!(scene, ctx, q1, q2);
+        // let q1 = scene.add(ctx, q1);
 
-        // scene.modify(q1, |q| q.shift(Vector3::new(0.0, 0.5, 0.)));
+        // scene.modify(q1, |q: &mut Shape| {
+        //     q.shift(Vector3::new(0.0, 0.0, 0.));
+        // });
 
         // let mut q1 = QBezier::square();
         // let mut q1 = QBezier::quadratic_bezier_points_for_arc(2. * PI, 8);

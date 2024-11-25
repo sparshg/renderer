@@ -10,47 +10,39 @@ use crate::renderer::{
 use cgmath::{ElementWise, Quaternion, Vector3, Vector4};
 use wgpu::{util::DeviceExt, BufferAddress};
 
-pub trait Shape {}
-pub struct Circle;
-pub struct Square;
-impl Shape for Circle {}
-impl Shape for Square {}
-
-pub struct QBezierPath<T: ?Sized> {
+pub struct QBezierPath {
     points: Vec<Vector3<f32>>,
     transform: Transform,
     color: Vector4<f32>,
     pub render_object: Option<RenderObject>,
     pub compute_object: Option<ComputeObject>,
-    marker: std::marker::PhantomData<T>,
 }
 
-impl<T: ?Sized> QBezierPath<T> {
+impl QBezierPath {
     pub fn rotate(&mut self, rotation: Quaternion<f32>) {
         self.transform.rotation = rotation * self.transform.rotation;
     }
-    pub fn scale(&mut self, scale: impl Into<Vector3<f32>>) {
-        self.transform.scale.mul_assign_element_wise(scale.into());
+    pub fn scale(&mut self, scale: Vector3<f32>) {
+        self.transform.scale.mul_assign_element_wise(scale);
     }
-    pub fn shift(&mut self, offset: impl Into<Vector3<f32>>) {
-        self.transform.position += offset.into();
+    pub fn shift(&mut self, offset: Vector3<f32>) {
+        self.transform.position += offset;
     }
-    pub fn color(&mut self, color: impl Into<Vector4<f32>>) {
-        self.color = color.into();
+    pub fn color(&mut self, color: Vector4<f32>) {
+        self.color = color;
     }
 }
 
-impl<T: ?Sized> QBezierPath<T> {
+impl QBezierPath {
     const VERTEX_SIZE: usize = 32;
 
-    fn new(points: Vec<Vector3<f32>>) -> Self {
+    pub fn new(points: Vec<Vector3<f32>>) -> Self {
         Self {
             points,
             transform: Transform::new(),
             color: Vector4::new(1.0, 1.0, 1.0, 1.0),
             compute_object: None,
             render_object: None,
-            marker: std::marker::PhantomData,
         }
     }
 
@@ -78,7 +70,7 @@ impl<T: ?Sized> QBezierPath<T> {
     }
 }
 
-impl<T: ?Sized> ShapeBuffer for QBezierPath<T> {
+impl ShapeBuffer for QBezierPath {
     fn create_render_buffers(&mut self, ctx: &SurfaceContext, layout: &wgpu::BindGroupLayout) {
         let index_buffer = self.create_index_buffer(ctx);
         let vertex_buffer = self.create_vertex_buffer(ctx);
@@ -202,37 +194,37 @@ impl<T: ?Sized> ShapeBuffer for QBezierPath<T> {
     }
 }
 
-impl QBezierPath<Circle> {
-    pub fn circle() -> Self {
-        let angle = 2. * PI;
-        let n_components = 8;
-        let n_points = 2 * n_components + 1;
-        let angles = (0..n_points).map(|i| i as f32 * angle / (n_points - 1) as f32);
-        let mut points = angles
-            .map(|angle| Vector3::new(angle.cos(), angle.sin(), 0.))
-            .collect::<Vec<_>>();
-        let theta = angle / n_components as f32;
-        let handle_adjust = 1.0 / (theta / 2.0).cos();
+// impl QBezierPath<Circle> {
+//     pub fn circle() -> Self {
+//         let angle = 2. * PI;
+//         let n_components = 8;
+//         let n_points = 2 * n_components + 1;
+//         let angles = (0..n_points).map(|i| i as f32 * angle / (n_points - 1) as f32);
+//         let mut points = angles
+//             .map(|angle| Vector3::new(angle.cos(), angle.sin(), 0.))
+//             .collect::<Vec<_>>();
+//         let theta = angle / n_components as f32;
+//         let handle_adjust = 1.0 / (theta / 2.0).cos();
 
-        for i in (1..n_points).step_by(2) {
-            points[i as usize] *= handle_adjust;
-        }
-        Self::new(points)
-    }
-}
-impl QBezierPath<Square> {
-    pub fn square() -> Self {
-        let points = vec![
-            Vector3::new(1., 1., 0.),
-            Vector3::new(0., 1., 0.),
-            Vector3::new(-1., 1., 0.),
-            Vector3::new(-1., 0., 0.),
-            Vector3::new(-1., -1., 0.),
-            Vector3::new(0., -1., 0.),
-            Vector3::new(1., -1., 0.),
-            Vector3::new(1., 0., 0.),
-            Vector3::new(1., 1., 0.),
-        ];
-        Self::new(points)
-    }
-}
+//         for i in (1..n_points).step_by(2) {
+//             points[i as usize] *= handle_adjust;
+//         }
+//         Self::new(points)
+//     }
+// }
+// impl QBezierPath<Square> {
+//     pub fn square() -> Self {
+//         let points = vec![
+//             Vector3::new(1., 1., 0.),
+//             Vector3::new(0., 1., 0.),
+//             Vector3::new(-1., 1., 0.),
+//             Vector3::new(-1., 0., 0.),
+//             Vector3::new(-1., -1., 0.),
+//             Vector3::new(0., -1., 0.),
+//             Vector3::new(1., -1., 0.),
+//             Vector3::new(1., 0., 0.),
+//             Vector3::new(1., 1., 0.),
+//         ];
+//         Self::new(points)
+//     }
+// }
