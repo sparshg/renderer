@@ -23,12 +23,13 @@ impl State {
         // q1.scale(Vector3::new(0.5, 0.5, 0.5));
         // q1.shift(Vector3::new(-0.1, 0., 0.));
         // q2.scale(Vector3::new(0.5, 0.5, 0.5));
-        add!(scene, ctx, q1);
+        add!(scene, ctx, q1, q2);
+        remove!(scene, q1);
         // let q1 = scene.add(ctx, q1);
-
-        scene.modify(q1, |q| {
-            q.shift(Vector3::new(0.0, 0.0, 0.));
-        });
+        // drop(q1);
+        // scene.modify(q1, |q| {
+        //     q.shift(Vector3::new(0.0, 0.0, 0.));
+        // });
         // scene.modify(q2, |q| {
         //     q.shift(Vector3::new(0.0, 0.0, 0.));
         // });

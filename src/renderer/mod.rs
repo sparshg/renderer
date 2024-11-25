@@ -1,23 +1,21 @@
 // use context::SurfaceWrapper;
 
-mod bindgroup;
 mod camera;
-mod context;
-mod pipeline;
+mod utils;
 mod window;
 use std::collections::HashMap;
 
-pub use bindgroup::{Attach, BindGroupBuilder};
 use camera::Camera;
 use cgmath::Matrix4;
 use cgmath::SquareMatrix;
 use cgmath::Vector4;
-pub use context::AnyContext;
-pub use context::Context;
-pub use context::SurfaceContext;
 use encase::ShaderType;
-use pipeline::IntoPass;
-pub use pipeline::PipelineBuilder;
+pub use utils::bindgroup::{Attach, BindGroupBuilder};
+pub use utils::context::AnyContext;
+pub use utils::context::Context;
+pub use utils::context::SurfaceContext;
+use utils::pipeline::IntoPass;
+pub use utils::pipeline::PipelineBuilder;
 use wgpu::CommandEncoder;
 use wgpu::ComputePipeline;
 use wgpu::RenderPipeline;
@@ -94,6 +92,15 @@ macro_rules! add {
     };
 }
 
+#[macro_export]
+macro_rules! remove {
+    ($scene:ident, $($shape:ident),*) => {
+        $(
+            $scene.remove($shape);
+        )*
+    };
+}
+
 impl Scene {
     pub fn new(ctx: &SurfaceContext) -> Self {
         let depth_texture = Texture::create_depth_texture(
@@ -124,6 +131,10 @@ impl Scene {
             id,
             _marker: std::marker::PhantomData,
         }
+    }
+
+    pub fn remove<T: 'static>(&mut self, id: Id<T>) {
+        self.objects.remove(&id.id);
     }
 
     pub fn render(&mut self, ctx: &SurfaceContext, view: &wgpu::TextureView) {

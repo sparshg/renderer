@@ -5,7 +5,7 @@ use winit::{
     event_loop::EventLoop,
 };
 
-use super::context::SurfaceContext;
+use super::utils::context::SurfaceContext;
 
 pub trait App {
     fn resize(&mut self, ctx: &mut SurfaceContext);
