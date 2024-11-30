@@ -4,6 +4,7 @@ mod camera;
 mod utils;
 mod window;
 use std::collections::HashMap;
+use std::ops::Deref;
 
 use camera::Camera;
 use cgmath::Matrix4;
@@ -63,17 +64,19 @@ pub struct ComputeObject {
     pub update: bool,
 }
 
+#[derive(Debug, Clone)]
 pub struct Id<T> {
     pub id: u32,
     _marker: std::marker::PhantomData<T>,
 }
-impl<T> Clone for Id<T> {
-    fn clone(&self) -> Self {
-        *self
+
+impl<T> Deref for Id<T> {
+    type Target = u32;
+
+    fn deref(&self) -> &Self::Target {
+        &self.id
     }
 }
-
-impl<T> Copy for Id<T> {}
 pub struct Scene {
     // ctx: &'a SurfaceContext<'a>,
     pub camera: Camera,
@@ -134,7 +137,7 @@ impl Scene {
     }
 
     pub fn remove<T: 'static>(&mut self, id: Id<T>) {
-        self.objects.remove(&id.id);
+        self.objects.remove(&id);
     }
 
     pub fn render(&mut self, ctx: &SurfaceContext, view: &wgpu::TextureView) {
@@ -165,8 +168,8 @@ impl Scene {
         ctx.queue().submit(std::iter::once(encoder.finish()));
     }
 
-    pub fn modify<T: 'static>(&mut self, id: Id<T>, f: impl FnOnce(&mut Shape<T>)) {
-        let ob = self.objects.get_mut(&id.id).expect("Object not found");
+    pub fn modify<T: 'static>(&mut self, id: &Id<T>, f: impl FnOnce(&mut Shape<T>)) {
+        let ob = self.objects.get_mut(id).expect("Object not found");
         let ob = ob.as_any_mut().downcast_mut::<Shape<T>>().unwrap();
         f(ob);
     }

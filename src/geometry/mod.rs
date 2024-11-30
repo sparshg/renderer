@@ -2,7 +2,6 @@ use std::any::Any;
 
 use cgmath::{Matrix4, One, Quaternion, Vector3, Vector4, Zero};
 
-
 pub mod bezier;
 pub mod shapes;
 pub struct Transform {
@@ -54,16 +53,25 @@ impl<T> Shape<T> {
         self.qbezier.rotate(rotation);
         self
     }
+
     #[inline]
-    pub fn scale(&mut self, scale: impl Into<Vector3<f32>>) -> &mut Self {
+    pub fn scale_vec(&mut self, scale: impl Into<Vector3<f32>>) -> &mut Self {
         self.qbezier.scale(scale.into());
         self
     }
+
+    #[inline]
+    pub fn scale(&mut self, scale: f32) -> &mut Self {
+        self.qbezier.scale((scale, scale, scale).into());
+        self
+    }
+
     #[inline]
     pub fn shift(&mut self, shift: impl Into<Vector3<f32>>) -> &mut Self {
         self.qbezier.shift(shift.into());
         self
     }
+
     #[inline]
     pub fn color(&mut self, color: impl Into<Vector4<f32>>) -> &mut Self {
         self.qbezier.color(color.into());

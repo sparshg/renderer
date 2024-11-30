@@ -1,10 +1,11 @@
-mod compute;
 mod geometry;
 mod renderer;
 mod texture;
 
-use cgmath::Vector3;
-use geometry::shapes::{Circle, Square};
+use geometry::{
+    shapes::{Circle, Square},
+    Shape,
+};
 use renderer::{Scene, SurfaceContext};
 use winit::event::WindowEvent;
 
@@ -16,27 +17,19 @@ struct State {
 
 impl State {
     fn new(ctx: &SurfaceContext<'_>) -> Self {
-        let mut scene = Scene::new(ctx);
-        let q1 = Square::new(1.);
-        let q2 = Circle::new(1.);
-        // q1.color(Vector4::new(0.8, 0.05, 0.05, 0.9));
-        // q1.scale(Vector3::new(0.5, 0.5, 0.5));
-        // q1.shift(Vector3::new(-0.1, 0., 0.));
-        // q2.scale(Vector3::new(0.5, 0.5, 0.5));
+        let mut scene: Scene = Scene::new(ctx);
+
+        let q1: Shape<Square> = Square::new(1.);
+        let q2: Shape<Circle> = Circle::new(1.);
+
         add!(scene, ctx, q1, q2);
-        remove!(scene, q1);
-        // let q1 = scene.add(ctx, q1);
-        // drop(q1);
-        // scene.modify(q1, |q| {
-        //     q.shift(Vector3::new(0.0, 0.0, 0.));
-        // });
-        // scene.modify(q2, |q| {
-        //     q.shift(Vector3::new(0.0, 0.0, 0.));
-        // });
-        // let mut q1 = QBezier::square();
-        // let mut q1 = QBezier::quadratic_bezier_points_for_arc(2. * PI, 8);
-        // let mut q2 = QBezier::quadratic_bezier_points_for_arc(2. * PI, 16);
-        // q2.color(Vector4::new(0.05, 0.8, 0.05, 0.9));
+        scene.modify(&q1, |q| {
+            q.shift((1.0, 0.0, 0.0)).color((0.8, 0.05, 0.05, 0.9));
+        });
+        scene.modify(&q2, |q| {
+            q.shift((-1.0, 0.0, 0.0)).scale(0.5);
+        });
+        // remove!(scene, q1);
         Self { scene }
     }
 }
