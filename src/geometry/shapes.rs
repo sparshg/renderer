@@ -22,20 +22,17 @@ impl Square {
         .into_iter()
         .map(|(x, y, z)| Vector3::new(x, y, z) * side * 0.5)
         .collect();
-        Shape {
-            shape: Square { side },
-            qbezier: QBezierPath::new(points),
-        }
+        Shape::new(Self { side }, points)
     }
 }
 
-pub struct Circle {
+pub struct Arc {
     radius: f32,
+    angle: f32,
 }
 
-impl Circle {
-    pub fn new(radius: f32) -> Shape<Circle> {
-        let angle = 2. * std::f32::consts::PI;
+impl Arc {
+    pub fn new(radius: f32, angle: f32) -> Shape<Arc> {
         let n_components = 8;
         let n_points = 2 * n_components + 1;
         let angles = (0..n_points).map(|i| i as f32 * angle / (n_points - 1) as f32);
@@ -48,9 +45,10 @@ impl Circle {
         for i in (1..n_points).step_by(2) {
             points[i as usize] *= handle_adjust;
         }
-        Shape {
-            shape: Circle { radius },
-            qbezier: QBezierPath::new(points),
-        }
+        Shape::new(Self { radius, angle }, points)
+    }
+
+    pub fn circle(radius: f32) -> Shape<Arc> {
+        Self::new(radius, std::f32::consts::PI * 2.)
     }
 }

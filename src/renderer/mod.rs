@@ -1,5 +1,3 @@
-// use context::SurfaceWrapper;
-
 mod camera;
 mod utils;
 mod window;
@@ -55,8 +53,6 @@ pub struct RenderObject {
     pub uniform_buffer: wgpu::Buffer,
     pub bind_group: wgpu::BindGroup,
     // pub renderer_type: PipelineType,
-    pub uniforms: ObjectUniforms,
-    pub update: bool,
 }
 pub struct ComputeObject {
     pub buffer: wgpu::Buffer,
@@ -121,7 +117,7 @@ impl Scene {
     }
 
     pub fn add<T: 'static>(&mut self, ctx: &SurfaceContext, mut shape: Shape<T>) -> Id<T> {
-        shape.qbezier.create_render_buffers(
+        shape.qbezier_mut().create_render_buffers(
             ctx,
             &self
                 .qbezier_renderer
@@ -154,7 +150,7 @@ impl Scene {
                 &self.depth_texture.view,
                 &self.camera.bind_group,
                 &mut encoder,
-                object.qbezier_mut(),
+                object,
                 false,
             );
             // }
@@ -172,6 +168,10 @@ impl Scene {
         let ob = self.objects.get_mut(id).expect("Object not found");
         let ob = ob.as_any_mut().downcast_mut::<Shape<T>>().unwrap();
         f(ob);
+    }
+
+    pub fn id_to_qbezier<T>(&self, id: &Id<T>) -> &QBezierPath {
+        self.objects.get(id).expect("Object not found").qbezier()
     }
 }
 
@@ -263,20 +263,19 @@ impl QBezierRenderer {
         depth_view: &wgpu::TextureView,
         cam_bind_group: &wgpu::BindGroup,
         encoder: &mut CommandEncoder,
-        qbezier: &mut QBezierPath,
+        object: &mut Box<dyn Renderable>,
         clear: bool,
     ) {
+        let qbezier = object.qbezier_mut();
         if qbezier.update_compute_buffers(ctx, &self.compute_pipeline.get_bind_group_layout(0)) {
             self.compute_pipeline
                 .begin_pass("Compute Pass")
                 .add_bind_group(&qbezier.compute_object.as_ref().unwrap().bind_group)
                 .pass(encoder, (qbezier.num_compute_workgroups(), 1, 1));
         }
-
-        qbezier.update_render_buffers(
-            ctx,
-            // &self.qbezier_render_pipelines[0].get_bind_group_layout(1),
-        );
+        object.update_uniforms();
+        let qbezier = object.qbezier();
+        qbezier.update_render_buffers(ctx, object.uniforms());
 
         let render_object = qbezier.render_object.as_ref().unwrap();
 

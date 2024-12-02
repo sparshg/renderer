@@ -1,9 +1,12 @@
+mod animations;
 mod geometry;
 mod renderer;
 mod texture;
 
+use std::ops::Deref;
+
 use geometry::{
-    shapes::{Circle, Square},
+    shapes::{Arc, Square},
     Shape,
 };
 use renderer::{Scene, SurfaceContext};
@@ -19,8 +22,8 @@ impl State {
     fn new(ctx: &SurfaceContext<'_>) -> Self {
         let mut scene: Scene = Scene::new(ctx);
 
-        let q1: Shape<Square> = Square::new(1.);
-        let q2: Shape<Circle> = Circle::new(1.);
+        let q1 = Square::new(1.);
+        let q2 = Arc::circle(1.);
 
         add!(scene, ctx, q1, q2);
         scene.modify(&q1, |q| {
@@ -29,7 +32,11 @@ impl State {
         scene.modify(&q2, |q| {
             q.shift((-1.0, 0.0, 0.0)).scale(0.5);
         });
-        // remove!(scene, q1);
+
+        let anim =
+            animations::Animation::new(scene.id_to_qbezier(&q1), scene.id_to_qbezier(&q2), 1.0);
+        // scene.add(anim. );
+
         Self { scene }
     }
 }

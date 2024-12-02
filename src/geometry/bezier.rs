@@ -1,30 +1,23 @@
-
 use super::Transform;
 use crate::renderer::{
     AnyContext, Attach, ComputeObject, ObjectUniforms, RenderObject, SurfaceContext,
 };
 use cgmath::{ElementWise, Quaternion, Vector3, Vector4};
 use wgpu::{util::DeviceExt, BufferAddress};
+
 pub struct QBezierPath {
-    points: Vec<Vector3<f32>>,
-    transform: Transform,
-    color: Vector4<f32>,
+    pub points: Vec<Vector3<f32>>,
     pub render_object: Option<RenderObject>,
     pub compute_object: Option<ComputeObject>,
 }
 
-impl QBezierPath {
-    pub fn rotate(&mut self, rotation: Quaternion<f32>) {
-        self.transform.rotation = rotation * self.transform.rotation;
-    }
-    pub fn scale(&mut self, scale: Vector3<f32>) {
-        self.transform.scale.mul_assign_element_wise(scale);
-    }
-    pub fn shift(&mut self, offset: Vector3<f32>) {
-        self.transform.position += offset;
-    }
-    pub fn color(&mut self, color: Vector4<f32>) {
-        self.color = color;
+impl Clone for QBezierPath {
+    fn clone(&self) -> Self {
+        Self {
+            points: self.points.clone(),
+            render_object: None,
+            compute_object: None,
+        }
     }
 }
 
@@ -34,8 +27,6 @@ impl QBezierPath {
     pub fn new(points: Vec<Vector3<f32>>) -> Self {
         Self {
             points,
-            transform: Transform::new(),
-            color: Vector4::new(1.0, 1.0, 1.0, 1.0),
             compute_object: None,
             render_object: None,
         }
@@ -63,9 +54,7 @@ impl QBezierPath {
             mapped_at_creation: false,
         })
     }
-}
 
-impl QBezierPath {
     pub fn create_render_buffers(&mut self, ctx: &SurfaceContext, layout: &wgpu::BindGroupLayout) {
         let index_buffer = self.create_index_buffer(ctx);
         let vertex_buffer = self.create_vertex_buffer(ctx);
@@ -94,8 +83,6 @@ impl QBezierPath {
             index_buffer,
             uniform_buffer,
             bind_group,
-            update: true,
-            uniforms,
             // renderer_type: PipelineType::QBezier,
         });
     }
@@ -163,23 +150,16 @@ impl QBezierPath {
         true
     }
 
-    pub fn update_render_buffers(&mut self, ctx: &SurfaceContext) {
+    pub fn update_render_buffers(&self, ctx: &SurfaceContext, uniforms: &ObjectUniforms) {
         let render_object = self
             .render_object
-            .as_mut()
+            .as_ref()
             .expect("Render Object not initialized. Create render buffers first");
-        if !render_object.update {
-            return;
-        }
-
-        render_object.uniforms.model = self.transform.get_matrix();
-        render_object.uniforms.color = self.color;
 
         let mut data = encase::UniformBuffer::new(Vec::new());
-        data.write(&render_object.uniforms).unwrap();
+        data.write(uniforms).unwrap();
         let data = data.into_inner();
 
-        render_object.update = false;
         ctx.queue()
             .write_buffer(&render_object.uniform_buffer, 0, &data);
     }
