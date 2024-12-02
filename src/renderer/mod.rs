@@ -1,13 +1,17 @@
 mod camera;
 mod utils;
 mod window;
+use core::panic;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ops::Deref;
+use std::rc::Rc;
 
 use camera::Camera;
 use cgmath::Matrix4;
 use cgmath::SquareMatrix;
 use cgmath::Vector4;
+use cgmath::VectorSpace;
 use encase::ShaderType;
 pub use utils::bindgroup::{Attach, BindGroupBuilder};
 pub use utils::context::AnyContext;
@@ -22,6 +26,7 @@ use wgpu::ShaderStages;
 pub use window::App;
 pub use window::Window;
 
+use crate::animations::Animation;
 use crate::geometry::bezier::QBezierPath;
 use crate::geometry::Renderable;
 use crate::geometry::Shape;
@@ -32,7 +37,7 @@ use crate::texture::Texture;
 //     // Mesh,
 // }
 
-#[derive(Debug, ShaderType)]
+#[derive(Debug, ShaderType, Clone)]
 pub struct ObjectUniforms {
     pub model: Matrix4<f32>,
     pub color: Vector4<f32>,
@@ -43,6 +48,15 @@ impl Default for ObjectUniforms {
         Self {
             model: Matrix4::identity(),
             color: Vector4::new(1.0, 1.0, 1.0, 1.0),
+        }
+    }
+}
+
+impl ObjectUniforms {
+    pub fn lerp(&self, other: &Self, t: f32) -> Self {
+        Self {
+            model: self.model.lerp(other.model, t),
+            color: self.color.lerp(other.color, t),
         }
     }
 }
@@ -60,25 +74,20 @@ pub struct ComputeObject {
     pub update: bool,
 }
 
-#[derive(Debug, Clone)]
-pub struct Id<T> {
+#[derive(Clone)]
+pub struct Id<T: 'static> {
     pub id: u32,
     _marker: std::marker::PhantomData<T>,
 }
 
-impl<T> Deref for Id<T> {
-    type Target = u32;
-
-    fn deref(&self) -> &Self::Target {
-        &self.id
-    }
-}
 pub struct Scene {
     // ctx: &'a SurfaceContext<'a>,
     pub camera: Camera,
     pub depth_texture: Texture,
     pub objects: HashMap<u32, Box<dyn Renderable>>,
-    qbezier_renderer: QBezierRenderer,
+    pub animations: Vec<Box<dyn Animation>>,
+    pub qbezier_renderer: QBezierRenderer,
+    t: f32,
     // mesh_renderer: MeshRenderer,
 }
 
@@ -113,6 +122,8 @@ impl Scene {
             objects: HashMap::new(),
             qbezier_renderer: QBezierRenderer::new(ctx, &camera.bind_group_layout),
             camera,
+            animations: Vec::new(),
+            t: 0.0,
         }
     }
 
@@ -133,7 +144,20 @@ impl Scene {
     }
 
     pub fn remove<T: 'static>(&mut self, id: Id<T>) {
-        self.objects.remove(&id);
+        self.objects.remove(&id.id);
+    }
+
+    pub fn update(&mut self, ctx: &SurfaceContext) {
+        self.camera.update_camera(ctx);
+        for anim in self.animations.iter_mut() {
+            anim.apply(self.t);
+            println!("{}", self.t);
+            self.t += self.t * 0.008 + 0.01;
+        }
+        if self.t > 1. {
+            dbg!(&self.animations[0].get_target().qbezier().points);
+            panic!();
+        }
     }
 
     pub fn render(&mut self, ctx: &SurfaceContext, view: &wgpu::TextureView) {
@@ -161,17 +185,33 @@ impl Scene {
             // }
         }
 
+        for anim in self.animations.iter_mut() {
+            let mut object = anim.get_target();
+            self.qbezier_renderer.render(
+                ctx,
+                view,
+                &self.depth_texture.view,
+                &self.camera.bind_group,
+                &mut encoder,
+                object,
+                false,
+            );
+        }
+
         ctx.queue().submit(std::iter::once(encoder.finish()));
     }
 
     pub fn modify<T: 'static>(&mut self, id: &Id<T>, f: impl FnOnce(&mut Shape<T>)) {
-        let ob = self.objects.get_mut(id).expect("Object not found");
+        let ob = self.objects.get_mut(&id.id).expect("Object not found");
         let ob = ob.as_any_mut().downcast_mut::<Shape<T>>().unwrap();
         f(ob);
     }
 
     pub fn id_to_qbezier<T>(&self, id: &Id<T>) -> &QBezierPath {
-        self.objects.get(id).expect("Object not found").qbezier()
+        self.objects
+            .get(&id.id)
+            .expect("Object not found")
+            .qbezier()
     }
 }
 
@@ -184,7 +224,7 @@ pub struct QBezierRenderer {
     // TODO: remove pub
     compute_pipeline: ComputePipeline,
     stencil_pipeline: RenderPipeline,
-    render_pipeline: RenderPipeline,
+    pub render_pipeline: RenderPipeline,
 }
 
 impl QBezierRenderer {
@@ -273,9 +313,12 @@ impl QBezierRenderer {
                 .add_bind_group(&qbezier.compute_object.as_ref().unwrap().bind_group)
                 .pass(encoder, (qbezier.num_compute_workgroups(), 1, 1));
         }
-        object.update_uniforms();
+        let to_update = object.update_uniform_buff();
         let qbezier = object.qbezier();
-        qbezier.update_render_buffers(ctx, object.uniforms());
+
+        if to_update {
+            qbezier.update_render_buffers(ctx, &qbezier.uniforms);
+        }
 
         let render_object = qbezier.render_object.as_ref().unwrap();
 

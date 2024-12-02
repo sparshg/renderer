@@ -2,6 +2,7 @@ use cgmath::Vector3;
 
 use super::{bezier::QBezierPath, Shape};
 
+#[derive(Clone)]
 pub struct Square {
     side: f32,
 }
@@ -25,6 +26,8 @@ impl Square {
         Shape::new(Self { side }, points)
     }
 }
+
+#[derive(Clone)]
 
 pub struct Arc {
     radius: f32,

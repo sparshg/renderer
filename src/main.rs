@@ -5,6 +5,7 @@ mod texture;
 
 use std::ops::Deref;
 
+use animations::{Animation, Transformation};
 use geometry::{
     shapes::{Arc, Square},
     Shape,
@@ -22,19 +23,29 @@ impl State {
     fn new(ctx: &SurfaceContext<'_>) -> Self {
         let mut scene: Scene = Scene::new(ctx);
 
-        let q1 = Square::new(1.);
-        let q2 = Arc::circle(1.);
+        let mut q1 = Arc::circle(1.);
+        q1.shift((0.0, 0.0, 0.0)).scale(0.5);
+        let mut q2 = Square::new(1.);
+        q2.shift((0.0, 0.0, 0.0)).color((0.8, 0.05, 0.05, 0.9));
+        // let mut q3 = q1.clone();
+        // q3.interpolate(&q1, &q2, 0.2);
+        let mut anim = Transformation::new(&q1, &q2, 1.);
+        anim.curr.qbezier_mut().create_render_buffers(
+            ctx,
+            &scene
+                .qbezier_renderer
+                .render_pipeline
+                .get_bind_group_layout(1),
+        );
+        scene.animations.push(Box::new(anim));
+        // add!(scene, ctx, q1, q2);
+        // scene.modify(&q1, |q| {
+        //     q.shift((1.0, 0.0, 0.0)).color((0.8, 0.05, 0.05, 0.9));
+        // });
+        // scene.modify(&q2, |q| {
+        //     q.shift((-1.0, 0.0, 0.0)).scale(0.5);
+        // });
 
-        add!(scene, ctx, q1, q2);
-        scene.modify(&q1, |q| {
-            q.shift((1.0, 0.0, 0.0)).color((0.8, 0.05, 0.05, 0.9));
-        });
-        scene.modify(&q2, |q| {
-            q.shift((-1.0, 0.0, 0.0)).scale(0.5);
-        });
-
-        let anim =
-            animations::Animation::new(scene.id_to_qbezier(&q1), scene.id_to_qbezier(&q2), 1.0);
         // scene.add(anim. );
 
         Self { scene }
@@ -68,7 +79,7 @@ impl renderer::App for State {
     }
 
     fn update(&mut self, ctx: &SurfaceContext) {
-        self.scene.camera.update_camera(ctx);
+        self.scene.update(ctx);
     }
 }
 

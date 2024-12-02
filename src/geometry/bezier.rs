@@ -7,6 +7,7 @@ use wgpu::{util::DeviceExt, BufferAddress};
 
 pub struct QBezierPath {
     pub points: Vec<Vector3<f32>>,
+    pub uniforms: ObjectUniforms,
     pub render_object: Option<RenderObject>,
     pub compute_object: Option<ComputeObject>,
 }
@@ -15,6 +16,7 @@ impl Clone for QBezierPath {
     fn clone(&self) -> Self {
         Self {
             points: self.points.clone(),
+            uniforms: self.uniforms.clone(),
             render_object: None,
             compute_object: None,
         }
@@ -27,6 +29,7 @@ impl QBezierPath {
     pub fn new(points: Vec<Vector3<f32>>) -> Self {
         Self {
             points,
+            uniforms: ObjectUniforms::default(),
             compute_object: None,
             render_object: None,
         }
@@ -114,7 +117,7 @@ impl QBezierPath {
                 reinit_point_buff = Some(ctx.device().create_buffer_init(
                     &wgpu::util::BufferInitDescriptor {
                         label: Some("Point Buffer"),
-                        usage: wgpu::BufferUsages::STORAGE,
+                        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
                         contents: &data,
                     },
                 ));
