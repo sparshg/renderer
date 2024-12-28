@@ -5,7 +5,7 @@ use winit::{
     keyboard::{KeyCode, PhysicalKey},
 };
 
-use crate::renderer::{AnyContext, Attach, BindGroupBuilder, SurfaceContext};
+use crate::core::{AnyContext, Attach, BindGroupBuilder, SurfaceContext};
 
 pub struct Camera {
     eye: Point3<f32>,

@@ -1,8 +1,7 @@
-use super::Transform;
-use crate::renderer::{
+use crate::core::{
     AnyContext, Attach, ComputeObject, ObjectUniforms, RenderObject, SurfaceContext,
 };
-use cgmath::{ElementWise, Quaternion, Vector3, Vector4};
+use cgmath::Vector3;
 use wgpu::{util::DeviceExt, BufferAddress};
 
 pub struct QBezierPath {

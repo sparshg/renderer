@@ -1,6 +1,6 @@
 use cgmath::VectorSpace;
 
-use crate::geometry::{Renderable, Shape};
+use crate::core::{Renderable, Shape};
 
 pub trait Animation {
     fn apply(&mut self, time: f32);

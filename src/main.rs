@@ -1,16 +1,13 @@
 mod animations;
+mod core;
 mod geometry;
-mod renderer;
 mod texture;
 
 use std::ops::Deref;
 
 use animations::{Animation, Transformation};
-use geometry::{
-    shapes::{Arc, Square},
-    Shape,
-};
-use renderer::{Scene, SurfaceContext};
+use core::{Scene, Shape, SurfaceContext};
+use geometry::shapes::{Arc, Square};
 use winit::event::WindowEvent;
 
 pub const VERTEX_STRUCT_SIZE: u64 = 32;
@@ -52,7 +49,7 @@ impl State {
     }
 }
 
-impl renderer::App for State {
+impl core::App for State {
     fn render(&mut self, ctx: &SurfaceContext) -> Result<(), wgpu::SurfaceError> {
         let frame = ctx.surface.get_current_texture()?;
         let view = frame
@@ -84,10 +81,10 @@ impl renderer::App for State {
 }
 
 async fn run() {
-    let window = renderer::Window::new("wgpu");
+    let window = core::Window::new("wgpu");
     env_logger::init();
     let w = window.get_window();
-    let mut ctx = renderer::Context::init().await.attach_window(&w);
+    let mut ctx = core::Context::init().await.attach_window(&w);
     let app = State::new(&ctx);
     window.run(&mut ctx, app);
 }

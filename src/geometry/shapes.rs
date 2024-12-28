@@ -1,6 +1,6 @@
 use cgmath::Vector3;
 
-use super::{bezier::QBezierPath, Shape};
+use crate::core::Shape;
 
 #[derive(Clone)]
 pub struct Square {
