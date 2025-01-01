@@ -21,11 +21,14 @@ impl<T> DerefMut for Latch<T> {
 }
 
 impl<T> Latch<T> {
-    pub fn new(value: T) -> Self {
+    pub fn new_reset(value: T) -> Self {
         Self {
             value,
             latch: false,
         }
+    }
+    pub fn new_set(value: T) -> Self {
+        Self { value, latch: true }
     }
 
     pub fn reset(&mut self) -> bool {

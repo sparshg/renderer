@@ -83,9 +83,9 @@ impl<T> Shape<T> {
     pub fn new(shape: T, points: Vec<Vector3<f32>>) -> Self {
         Self {
             shape,
-            transform: Latch::new(Transform::new()),
-            points: Latch::new(points),
-            color: Latch::new(Vector4::new(1.0, 1.0, 1.0, 1.0)),
+            transform: Latch::new_reset(Transform::new()),
+            points: Latch::new_set(points),
+            color: Latch::new_reset(Vector4::new(1.0, 1.0, 1.0, 1.0)),
             render_object: None,
             compute_object: None,
         }
@@ -252,7 +252,7 @@ impl<T> Shape<T> {
     fn create_render_object(&mut self, ctx: &SurfaceContext, layout: wgpu::BindGroupLayout) {
         let index_buffer = self.create_index_buffer(ctx);
         let vertex_buffer = self.create_vertex_buffer(ctx);
-        let uniforms = Latch::new(ObjectUniforms::new(&self.transform, *self.color));
+        let uniforms = Latch::new_reset(ObjectUniforms::new(&self.transform, *self.color));
 
         let mut buff = encase::UniformBuffer::new(Vec::<u8>::new());
         buff.write(uniforms.deref()).unwrap();
