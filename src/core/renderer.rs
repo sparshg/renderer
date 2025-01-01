@@ -13,6 +13,7 @@ pub struct QBezierRenderer {
 }
 
 impl QBezierRenderer {
+    // TODO: This is in shape as well
     const VERTEX_SIZE: usize = 32;
 
     pub fn new(ctx: &SurfaceContext<'_>, camera_layout: &wgpu::BindGroupLayout) -> Self {
@@ -81,6 +82,14 @@ impl QBezierRenderer {
         }
     }
 
+    pub fn compute_layout(&self) -> wgpu::BindGroupLayout {
+        self.compute_pipeline.get_bind_group_layout(0)
+    }
+
+    pub fn render_layout(&self) -> wgpu::BindGroupLayout {
+        self.render_pipeline.get_bind_group_layout(1)
+    }
+
     pub fn render(
         &self,
         ctx: &SurfaceContext<'_>,
@@ -91,21 +100,15 @@ impl QBezierRenderer {
         object: &mut Box<dyn Renderable>,
         clear: bool,
     ) {
-        let qbezier = object.qbezier_mut();
-        if qbezier.update_compute_buffers(ctx, &self.compute_pipeline.get_bind_group_layout(0)) {
+        if object.update_compute_buffers(ctx, &self.compute_layout()) {
             self.compute_pipeline
                 .begin_pass("Compute Pass")
-                .add_bind_group(&qbezier.compute_object.as_ref().unwrap().bind_group)
-                .pass(encoder, (qbezier.num_compute_workgroups(), 1, 1));
+                .add_bind_group(&object.get_compute_object().bind_group)
+                .pass(encoder, (object.num_compute_workgroups(), 1, 1));
         }
-        let to_update = object.update_uniform_buff();
-        let qbezier = object.qbezier();
+        object.update_render_buffers(ctx);
 
-        if to_update {
-            qbezier.update_render_buffers(ctx, &qbezier.uniforms);
-        }
-
-        let render_object = qbezier.render_object.as_ref().unwrap();
+        let render_object = object.get_render_object();
 
         self.stencil_pipeline
             .begin_pass("Stencil Pass")

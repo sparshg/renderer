@@ -30,7 +30,7 @@ impl Square {
 #[derive(Clone)]
 
 pub struct Arc {
-    radius: f32,
+    pub radius: f32,
     angle: f32,
 }
 

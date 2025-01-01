@@ -1,16 +1,10 @@
-mod bezier;
 mod camera;
 mod renderer;
 mod shape;
 mod utils;
 mod window;
-use core::panic;
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::ops::Deref;
-use std::rc::Rc;
 
-pub use bezier::QBezierPath;
 use camera::Camera;
 use cgmath::Matrix4;
 use cgmath::SquareMatrix;
@@ -18,6 +12,7 @@ use cgmath::Vector4;
 use cgmath::VectorSpace;
 use encase::ShaderType;
 use renderer::QBezierRenderer;
+use shape::Transform;
 pub use utils::bindgroup::{Attach, BindGroupBuilder};
 pub use utils::context::AnyContext;
 pub use utils::context::Context;
@@ -26,7 +21,7 @@ pub use utils::pipeline::PipelineBuilder;
 pub use window::App;
 pub use window::Window;
 
-use crate::animations::Animation;
+// use crate::animations::Animation;
 use crate::texture::Texture;
 pub use shape::Renderable;
 pub use shape::Shape;
@@ -52,25 +47,21 @@ impl Default for ObjectUniforms {
 }
 
 impl ObjectUniforms {
+    pub fn new(transform: &Transform, color: Vector4<f32>) -> Self {
+        Self {
+            model: transform.get_matrix(),
+            color,
+        }
+    }
+}
+
+impl ObjectUniforms {
     pub fn lerp(&self, other: &Self, t: f32) -> Self {
         Self {
             model: self.model.lerp(other.model, t),
             color: self.color.lerp(other.color, t),
         }
     }
-}
-
-pub struct RenderObject {
-    pub vertex_buffer: wgpu::Buffer,
-    pub index_buffer: wgpu::Buffer,
-    pub uniform_buffer: wgpu::Buffer,
-    pub bind_group: wgpu::BindGroup,
-    // pub renderer_type: PipelineType,
-}
-pub struct ComputeObject {
-    pub buffer: wgpu::Buffer,
-    pub bind_group: wgpu::BindGroup,
-    pub update: bool,
 }
 
 #[derive(Clone)]
@@ -84,7 +75,7 @@ pub struct Scene {
     pub camera: Camera,
     pub depth_texture: Texture,
     pub objects: HashMap<u32, Box<dyn Renderable>>,
-    pub animations: Vec<Box<dyn Animation>>,
+    // pub animations: Vec<Box<dyn Animation>>,
     pub qbezier_renderer: QBezierRenderer,
     t: f32,
     // mesh_renderer: MeshRenderer,
@@ -121,20 +112,18 @@ impl Scene {
             objects: HashMap::new(),
             qbezier_renderer: QBezierRenderer::new(ctx, &camera.bind_group_layout),
             camera,
-            animations: Vec::new(),
+            // animations: Vec::new(),
             t: 0.0,
         }
     }
 
     pub fn add<T: 'static>(&mut self, ctx: &SurfaceContext, mut shape: Shape<T>) -> Id<T> {
-        // shape.qbezier_mut().create_render_buffers(
-        //     ctx,
-        //     &self
-        //         .qbezier_renderer
-        //         .render_pipeline
-        //         .get_bind_group_layout(1),
-        // );
         let id = self.objects.len() as u32;
+        shape.create_buffers(
+            ctx,
+            self.qbezier_renderer.compute_layout(),
+            self.qbezier_renderer.render_layout(),
+        );
         self.objects.insert(id, Box::new(shape));
         Id {
             id,
@@ -146,26 +135,23 @@ impl Scene {
         self.objects.remove(&id.id);
     }
 
-    // pub fn update(&mut self, ctx: &SurfaceContext) {
-    //     self.camera.update_camera(ctx);
-    //     for anim in self.animations.iter_mut() {
-    //         anim.apply(self.t);
-    //         println!("{}", self.t);
-    //         self.t += self.t * 0.008 + 0.01;
-    //     }
-    //     if self.t > 1. {
-    //         dbg!(&self.animations[0].get_target().qbezier().points);
-    //         panic!();
-    //     }
-    // }
+    pub fn update(&mut self, ctx: &SurfaceContext) {
+        //     self.camera.update_camera(ctx);
+        //     for anim in self.animations.iter_mut() {
+        //         anim.apply(self.t);
+        //         println!("{}", self.t);
+        //         self.t += self.t * 0.008 + 0.01;
+        //     }
+        //     if self.t > 1. {
+        //         dbg!(&self.animations[0].get_target().qbezier().points);
+        //         panic!();
+        //     }
+    }
 
     pub fn render(&mut self, ctx: &SurfaceContext, view: &wgpu::TextureView) {
         let mut encoder = ctx.device().create_command_encoder(&Default::default());
 
         for object in self.objects.values_mut() {
-            // match object.renderer_type {
-            // PipelineType::QBezier => {
-            // let ob
             self.qbezier_renderer.render(
                 ctx,
                 view,
@@ -175,12 +161,6 @@ impl Scene {
                 object,
                 false,
             );
-            // }
-            // PipelineType::Mesh => {
-            //     self.mesh_renderer
-            //         .render(ctx, view, &mut encoder, object, false);
-            // }
-            // }
         }
 
         // for anim in self.animations.iter_mut() {
@@ -199,7 +179,7 @@ impl Scene {
         ctx.queue().submit(std::iter::once(encoder.finish()));
     }
 
-    pub fn modify<T: 'static>(&mut self, id: &Id<T>, f: impl FnOnce(&mut Shape<T>)) {
+    pub fn modify<T>(&mut self, id: &Id<T>, f: impl FnOnce(&mut Shape<T>)) {
         let ob = self.objects.get_mut(&id.id).expect("Object not found");
         let ob = ob.as_any_mut().downcast_mut::<Shape<T>>().unwrap();
         f(ob);
@@ -212,8 +192,3 @@ impl Scene {
     //         .qbezier()
     // }
 }
-
-// pub struct MeshRenderer {
-//     pipeline: RenderPipeline,
-//     // ...other fields
-// }
