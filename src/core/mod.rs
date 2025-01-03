@@ -71,7 +71,6 @@ pub struct Id<T: 'static> {
 }
 
 pub struct Scene {
-    // ctx: &'a SurfaceContext<'a>,
     pub camera: Camera,
     pub depth_texture: Texture,
     pub objects: HashMap<u32, Box<dyn Renderable>>,
@@ -108,9 +107,9 @@ impl Scene {
         );
         let camera = Camera::new(ctx);
         Self {
-            depth_texture,
             objects: HashMap::new(),
             qbezier_renderer: QBezierRenderer::new(ctx, &camera.bind_group_layout),
+            depth_texture,
             camera,
             // animations: Vec::new(),
             t: 0.0,
@@ -136,7 +135,7 @@ impl Scene {
     }
 
     pub fn update(&mut self, ctx: &SurfaceContext) {
-        //     self.camera.update_camera(ctx);
+        self.camera.update_camera(ctx);
         //     for anim in self.animations.iter_mut() {
         //         anim.apply(self.t);
         //         println!("{}", self.t);

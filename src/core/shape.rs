@@ -1,12 +1,9 @@
 use std::{any::Any, ops::Deref};
 
 use cgmath::{ElementWise, Matrix4, One, Quaternion, Vector3, Vector4, VectorSpace, Zero};
-use wgpu::{util::DeviceExt, CommandEncoder, ComputePipeline, RenderPipeline, ShaderStages};
+use wgpu::util::DeviceExt;
 
-use super::{
-    utils::latch::Latch, AnyContext, Attach, BindGroupBuilder, ObjectUniforms, PipelineBuilder,
-    SurfaceContext,
-};
+use super::{utils::latch::Latch, AnyContext, Attach, ObjectUniforms, SurfaceContext};
 
 #[derive(Clone)]
 pub struct Transform {
@@ -56,19 +53,35 @@ pub struct RenderObject {
     uniform_buffer: wgpu::Buffer,
     pub bind_group: wgpu::BindGroup,
     uniforms: Latch<ObjectUniforms>,
-    //  renderer_type: PipelineType,
 }
 pub struct ComputeObject {
     buffer: wgpu::Buffer,
     pub bind_group: wgpu::BindGroup,
 }
+
 pub struct Shape<T> {
     shape: T,
     transform: Latch<Transform>,
     color: Latch<Vector4<f32>>,
-    points: Latch<Vec<Vector3<f32>>>,
+    pub points: Latch<Vec<Vector3<f32>>>,
     render_object: Option<RenderObject>,
     compute_object: Option<ComputeObject>,
+}
+
+impl<T> Clone for Shape<T>
+where
+    T: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            shape: self.shape.clone(),
+            transform: self.transform.clone(),
+            color: self.color.clone(),
+            points: self.points.clone(),
+            render_object: None,
+            compute_object: None,
+        }
+    }
 }
 
 impl<T> Deref for Shape<T> {
@@ -113,21 +126,21 @@ impl<T> Shape<T> {
         self
     }
 
-    // pub fn interpolate<U, V>(&mut self, a: &Shape<U>, b: &Shape<V>, t: f32) {
-    //     self.qbezier.points = a
-    //         .qbezier
-    //         .points
-    //         .iter()
-    //         .zip(b.qbezier.points.iter())
-    //         .map(|(a, b)| a.lerp(*b, t))
-    //         .collect();
-    //     self.transform = a.transform.lerp(&b.transform, t);
-    //     self.qbezier.uniforms = a.qbezier.uniforms.lerp(&b.qbezier.uniforms, t);
-    //     self.update_uniforms = true;
-    //     if let Some(ob) = self.qbezier.compute_object.as_mut() {
-    //         ob.update = true;
-    //     }
-    // }
+    pub fn interpolate<U, V>(&mut self, a: &Shape<U>, b: &Shape<V>, t: f32) {
+        *self.points = a
+            .points
+            .iter()
+            .zip(b.points.iter())
+            .map(|(a, b)| a.lerp(*b, t))
+            .collect();
+        *self.transform = a.transform.lerp(&b.transform, t);
+        *self.render_object.as_mut().unwrap().uniforms = a
+            .render_object
+            .as_ref()
+            .unwrap()
+            .uniforms
+            .lerp(&b.render_object.as_ref().unwrap().uniforms, t);
+    }
 }
 
 impl<T: 'static> Renderable for Shape<T> {
@@ -175,7 +188,7 @@ impl<T: 'static> Renderable for Shape<T> {
 
         let buffer = &self.compute_object.as_ref().unwrap().buffer;
         if (data.len() / 2..=data.len()).contains(&(buffer.size() as usize)) {
-            ctx.queue().write_buffer(&buffer, 0, &data);
+            ctx.queue().write_buffer(buffer, 0, &data);
             return true;
         }
 

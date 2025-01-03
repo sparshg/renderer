@@ -8,7 +8,7 @@ use winit::{
 use super::utils::context::SurfaceContext;
 
 pub trait App {
-    fn resize(&mut self, ctx: &mut SurfaceContext);
+    fn resize(&mut self, ctx: &SurfaceContext);
     fn render(&mut self, ctx: &SurfaceContext) -> Result<(), wgpu::SurfaceError>;
     fn update(&mut self, ctx: &SurfaceContext);
     fn input(&mut self, event: &WindowEvent);

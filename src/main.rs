@@ -3,10 +3,8 @@ mod core;
 mod geometry;
 mod texture;
 
-use std::ops::Deref;
-
 // use animations::{Animation, Transformation};
-use core::{Scene, Shape, SurfaceContext};
+use core::{Scene, SurfaceContext};
 use geometry::shapes::{Arc, Square};
 use winit::event::WindowEvent;
 
@@ -17,7 +15,7 @@ struct State {
 }
 
 impl State {
-    fn new(ctx: &SurfaceContext<'_>) -> Self {
+    fn new(ctx: &SurfaceContext) -> Self {
         let mut scene: Scene = Scene::new(ctx);
 
         let mut q1 = Arc::circle(1.);
@@ -37,9 +35,9 @@ impl State {
         // );
         // scene.animations.push(Box::new(anim));
         add!(scene, ctx, q1, q2);
-        // scene.modify(&q1, |q| {
-        //     q.shift((1.0, 0.0, 0.0)).color((0.8, 0.05, 0.05, 0.9));
-        // });
+        scene.modify(&q1, |q| {
+            q.shift((1.0, 0.0, 0.0)).color((0.8, 0.05, 0.05, 0.9));
+        });
         // scene.modify(&q2, |q| {
         //     q.shift((-1.0, 0.0, 0.0)).scale(0.5);
         // });
@@ -62,7 +60,7 @@ impl core::App for State {
         Ok(())
     }
 
-    fn resize(&mut self, ctx: &mut SurfaceContext) {
+    fn resize(&mut self, ctx: &SurfaceContext) {
         self.scene.camera.aspect = ctx.config.width as f32 / ctx.config.height as f32;
         self.scene.depth_texture = texture::Texture::create_depth_texture(
             &ctx.device,

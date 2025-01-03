@@ -1,5 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
+#[derive(Clone)]
 pub struct Latch<T> {
     value: T,
     latch: bool,

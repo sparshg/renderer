@@ -6,10 +6,9 @@ use super::{
 };
 
 pub struct QBezierRenderer {
-    // TODO: remove pub
     compute_pipeline: ComputePipeline,
     stencil_pipeline: RenderPipeline,
-    pub render_pipeline: RenderPipeline,
+    render_pipeline: RenderPipeline,
 }
 
 impl QBezierRenderer {
