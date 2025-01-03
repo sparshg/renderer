@@ -1,13 +1,17 @@
 use cgmath::VectorSpace;
 
-use crate::core::{Renderable, Shape};
+use crate::core::{HasPoints, Renderable, Shape};
 
 pub trait Animation {
     fn apply(&mut self, time: f32);
     fn get_target(&mut self) -> &mut Box<dyn Renderable>;
 }
 
-pub struct Transformation<T, V> {
+pub struct Transformation<T, V>
+where
+    T: HasPoints,
+    V: HasPoints,
+{
     duration: f32,
     pub curr: Box<dyn Renderable>,
     from: Shape<T>,
@@ -16,8 +20,8 @@ pub struct Transformation<T, V> {
 
 impl<T, V> Transformation<T, V>
 where
-    T: Clone + 'static,
-    V: Clone,
+    T: HasPoints + Clone + 'static,
+    V: HasPoints + Clone,
 {
     pub fn new(from: &Shape<T>, to: &Shape<V>, duration: f32) -> Self {
         let curr = from.clone();

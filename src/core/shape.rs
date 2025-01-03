@@ -65,11 +65,11 @@ pub struct ComputeObject {
     pub bind_group: wgpu::BindGroup,
 }
 
-pub struct Mobject<T> {
+pub struct Mobject<T: HasPoints> {
     inner: Rc<RefCell<Shape<T>>>,
 }
 
-impl<T> Deref for Mobject<T> {
+impl<T: HasPoints> Deref for Mobject<T> {
     type Target = Rc<RefCell<Shape<T>>>;
 
     fn deref(&self) -> &Self::Target {
@@ -77,7 +77,7 @@ impl<T> Deref for Mobject<T> {
     }
 }
 
-impl<T> Mobject<T> {
+impl<T: HasPoints> Mobject<T> {
     pub fn new(mobject: Shape<T>) -> Self {
         Self {
             inner: Rc::new(RefCell::new(mobject)),
@@ -112,36 +112,40 @@ impl<T> Mobject<T> {
         self
     }
 
-    pub fn interpolate<U, V>(&self, a: &Shape<U>, b: &Shape<V>, t: f32) {
-        let mut self_mut = self.borrow_mut();
-        *self_mut.points = a
-            .points
-            .iter()
-            .zip(b.points.iter())
-            .map(|(a, b)| a.lerp(*b, t))
-            .collect();
-        *self_mut.transform = a.transform.lerp(&b.transform, t);
-        *self_mut.render_object.as_mut().unwrap().uniforms = a
-            .render_object
-            .as_ref()
-            .unwrap()
-            .uniforms
-            .lerp(&b.render_object.as_ref().unwrap().uniforms, t);
-    }
+    // pub fn interpolate<U, V>(&self, a: &Shape<U>, b: &Shape<V>, t: f32) {
+    //     let mut self_mut = self.borrow_mut();
+    //     *self_mut.points = a
+    //         .points
+    //         .iter()
+    //         .zip(b.points.iter())
+    //         .map(|(a, b)| a.lerp(*b, t))
+    //         .collect();
+    //     *self_mut.transform = a.transform.lerp(&b.transform, t);
+    //     *self_mut.render_object.as_mut().unwrap().uniforms = a
+    //         .render_object
+    //         .as_ref()
+    //         .unwrap()
+    //         .uniforms
+    //         .lerp(&b.render_object.as_ref().unwrap().uniforms, t);
+    // }
 }
 
-pub struct Shape<T> {
-    shape: T,
+pub trait HasPoints {
+    fn calc_points(&self) -> Vec<Vector3<f32>>;
+}
+
+pub struct Shape<T: HasPoints> {
+    shape: Latch<T>,
     transform: Latch<Transform>,
     color: Latch<Vector4<f32>>,
-    pub points: Latch<Vec<Vector3<f32>>>,
+    pub points: Vec<Vector3<f32>>,
     render_object: Option<RenderObject>,
     compute_object: Option<ComputeObject>,
 }
 
 impl<T> Clone for Shape<T>
 where
-    T: Clone,
+    T: Clone + HasPoints,
 {
     fn clone(&self) -> Self {
         Self {
@@ -155,7 +159,7 @@ where
     }
 }
 
-impl<T> Deref for Shape<T> {
+impl<T: HasPoints> Deref for Shape<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -163,20 +167,20 @@ impl<T> Deref for Shape<T> {
     }
 }
 
-impl<T> Shape<T> {
-    pub fn new(shape: T, points: Vec<Vector3<f32>>) -> Self {
+impl<T: HasPoints> Shape<T> {
+    pub fn new(shape: T) -> Self {
         Self {
-            shape,
+            shape: Latch::new_set(shape),
             transform: Latch::new_reset(Transform::new()),
-            points: Latch::new_set(points),
             color: Latch::new_reset(Vector4::new(1.0, 1.0, 1.0, 1.0)),
+            points: Vec::new(),
             render_object: None,
             compute_object: None,
         }
     }
 }
 
-impl<T: 'static> Renderable for Shape<T> {
+impl<T: HasPoints + 'static> Renderable for Shape<T> {
     fn get_render_object(&self) -> &RenderObject {
         self.render_object.as_ref().unwrap()
     }
@@ -207,9 +211,11 @@ impl<T: 'static> Renderable for Shape<T> {
         ctx: &SurfaceContext,
         layout: &wgpu::BindGroupLayout,
     ) -> bool {
-        if !self.points.reset() {
+        if !self.shape.reset() {
             return false;
         }
+
+        self.points = self.shape.calc_points();
 
         let mut data = encase::StorageBuffer::new(Vec::new());
         data.write(self.points.deref()).unwrap();
@@ -255,7 +261,7 @@ impl<T: 'static> Renderable for Shape<T> {
     }
 }
 
-impl<T> Shape<T> {
+impl<T: HasPoints> Shape<T> {
     const VERTEX_SIZE: usize = 32;
 
     pub fn create_buffers(
@@ -292,6 +298,7 @@ impl<T> Shape<T> {
     }
 
     fn create_render_object(&mut self, ctx: &SurfaceContext, layout: wgpu::BindGroupLayout) {
+        self.points = self.shape.calc_points();
         let index_buffer = self.create_index_buffer(ctx);
         let vertex_buffer = self.create_vertex_buffer(ctx);
         let uniforms = Latch::new_reset(ObjectUniforms::new(&self.transform, *self.color));

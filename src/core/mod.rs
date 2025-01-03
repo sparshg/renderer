@@ -16,6 +16,7 @@ use cgmath::Vector4;
 use cgmath::VectorSpace;
 use encase::ShaderType;
 use renderer::QBezierRenderer;
+pub use shape::HasPoints;
 use shape::Transform;
 pub use utils::bindgroup::{Attach, BindGroupBuilder};
 pub use utils::context::AnyContext;
@@ -115,11 +116,11 @@ impl Scene {
         }
     }
 
-    fn upcast<T: 'static>(shape: Rc<RefCell<Shape<T>>>) -> Rc<RefCell<dyn Renderable>> {
+    fn upcast<T: HasPoints + 'static>(shape: Rc<RefCell<Shape<T>>>) -> Rc<RefCell<dyn Renderable>> {
         shape
     }
 
-    pub fn add<T: 'static>(&mut self, ctx: &SurfaceContext, shape: &Mobject<T>) {
+    pub fn add<T: HasPoints + 'static>(&mut self, ctx: &SurfaceContext, shape: &Mobject<T>) {
         shape.borrow_mut().create_buffers(
             ctx,
             self.qbezier_renderer.compute_layout(),
@@ -128,7 +129,7 @@ impl Scene {
         self.objects.push(shape.deref().clone());
     }
 
-    pub fn remove<T: 'static>(&mut self, shape: Mobject<T>) {
+    pub fn remove<T: HasPoints + 'static>(&mut self, shape: Mobject<T>) {
         self.objects
             .retain(|x| Rc::ptr_eq(x, &Self::upcast(shape.clone())));
     }
@@ -176,17 +177,4 @@ impl Scene {
 
         ctx.queue().submit(std::iter::once(encoder.finish()));
     }
-
-    // pub fn modify<T>(&mut self, id: &Id<T>, f: impl FnOnce(&mut Shape<T>)) {
-    //     let ob = self.objects.get_mut(&id.id).expect("Object not found");
-    //     let ob = ob.as_any_mut().downcast_mut::<Shape<T>>().unwrap();
-    //     f(ob);
-    // }
-
-    // pub fn id_to_qbezier<T>(&self, id: &Id<T>) -> &QBezierPath {
-    //     self.objects
-    //         .get(&id.id)
-    //         .expect("Object not found")
-    //         .qbezier()
-    // }
 }

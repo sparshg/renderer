@@ -23,6 +23,7 @@ impl State {
 
         let q2 = Square::new(1.);
         q2.shift((0.0, 0.0, 0.0)).color((0.8, 0.05, 0.05, 0.9));
+        // q1.borrow().points
         // let mut q3 = q1.clone();
         // q3.interpolate(&q1, &q2, 0.2);
         // let mut anim = Transformation::new(&q1, &q2, 1.);

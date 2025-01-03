@@ -40,34 +40,3 @@ impl<T> Latch<T> {
         false
     }
 }
-
-use std::cell::RefCell;
-use std::rc::Rc;
-
-trait MyTrait {
-    fn do_something(&self);
-}
-
-struct MyStruct<T> {
-    value: T,
-}
-
-impl<T> MyTrait for MyStruct<T> {
-    fn do_something(&self) {
-        println!("Value:");
-    }
-}
-
-fn main() {
-    let mut vec: Vec<Rc<RefCell<dyn MyTrait>>> = Vec::new();
-
-    let item1 = Rc::new(RefCell::new(MyStruct { value: 42 }));
-    let item2 = Rc::new(RefCell::new(MyStruct { value: 10.0 }));
-
-    vec.push(item1);
-    vec.push(item2);
-
-    for item in &vec {
-        item.borrow().do_something();
-    }
-}
