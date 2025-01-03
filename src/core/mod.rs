@@ -3,7 +3,11 @@ mod renderer;
 mod shape;
 mod utils;
 mod window;
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::collections::HashSet;
+use std::ops::Deref;
+use std::rc::Rc;
 
 use camera::Camera;
 use cgmath::Matrix4;
@@ -23,6 +27,7 @@ pub use window::Window;
 
 // use crate::animations::Animation;
 use crate::texture::Texture;
+pub use shape::Mobject;
 pub use shape::Renderable;
 pub use shape::Shape;
 
@@ -64,16 +69,10 @@ impl ObjectUniforms {
     }
 }
 
-#[derive(Clone)]
-pub struct Id<T: 'static> {
-    pub id: u32,
-    _marker: std::marker::PhantomData<T>,
-}
-
 pub struct Scene {
     pub camera: Camera,
     pub depth_texture: Texture,
-    pub objects: HashMap<u32, Box<dyn Renderable>>,
+    pub objects: Vec<Rc<RefCell<dyn Renderable>>>,
     // pub animations: Vec<Box<dyn Animation>>,
     pub qbezier_renderer: QBezierRenderer,
     t: f32,
@@ -84,7 +83,7 @@ pub struct Scene {
 macro_rules! add {
     ($scene:ident, $ctx:ident, $($shape:ident),*) => {
         $(
-            let $shape = $scene.add($ctx, $shape);
+            $scene.add($ctx, $shape);
         )*
     };
 }
@@ -107,7 +106,7 @@ impl Scene {
         );
         let camera = Camera::new(ctx);
         Self {
-            objects: HashMap::new(),
+            objects: Vec::new(),
             qbezier_renderer: QBezierRenderer::new(ctx, &camera.bind_group_layout),
             depth_texture,
             camera,
@@ -116,22 +115,22 @@ impl Scene {
         }
     }
 
-    pub fn add<T: 'static>(&mut self, ctx: &SurfaceContext, mut shape: Shape<T>) -> Id<T> {
-        let id = self.objects.len() as u32;
-        shape.create_buffers(
+    fn upcast<T: 'static>(shape: Rc<RefCell<Shape<T>>>) -> Rc<RefCell<dyn Renderable>> {
+        shape
+    }
+
+    pub fn add<T: 'static>(&mut self, ctx: &SurfaceContext, shape: &Mobject<T>) {
+        shape.borrow_mut().create_buffers(
             ctx,
             self.qbezier_renderer.compute_layout(),
             self.qbezier_renderer.render_layout(),
         );
-        self.objects.insert(id, Box::new(shape));
-        Id {
-            id,
-            _marker: std::marker::PhantomData,
-        }
+        self.objects.push(shape.deref().clone());
     }
 
-    pub fn remove<T: 'static>(&mut self, id: Id<T>) {
-        self.objects.remove(&id.id);
+    pub fn remove<T: 'static>(&mut self, shape: Mobject<T>) {
+        self.objects
+            .retain(|x| Rc::ptr_eq(x, &Self::upcast(shape.clone())));
     }
 
     pub fn update(&mut self, ctx: &SurfaceContext) {
@@ -150,7 +149,7 @@ impl Scene {
     pub fn render(&mut self, ctx: &SurfaceContext, view: &wgpu::TextureView) {
         let mut encoder = ctx.device().create_command_encoder(&Default::default());
 
-        for object in self.objects.values_mut() {
+        for object in &self.objects {
             self.qbezier_renderer.render(
                 ctx,
                 view,
@@ -178,11 +177,11 @@ impl Scene {
         ctx.queue().submit(std::iter::once(encoder.finish()));
     }
 
-    pub fn modify<T>(&mut self, id: &Id<T>, f: impl FnOnce(&mut Shape<T>)) {
-        let ob = self.objects.get_mut(&id.id).expect("Object not found");
-        let ob = ob.as_any_mut().downcast_mut::<Shape<T>>().unwrap();
-        f(ob);
-    }
+    // pub fn modify<T>(&mut self, id: &Id<T>, f: impl FnOnce(&mut Shape<T>)) {
+    //     let ob = self.objects.get_mut(&id.id).expect("Object not found");
+    //     let ob = ob.as_any_mut().downcast_mut::<Shape<T>>().unwrap();
+    //     f(ob);
+    // }
 
     // pub fn id_to_qbezier<T>(&self, id: &Id<T>) -> &QBezierPath {
     //     self.objects

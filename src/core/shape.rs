@@ -1,4 +1,10 @@
-use std::{any::Any, ops::Deref};
+use std::{
+    any::Any,
+    cell::{Cell, RefCell},
+    hash::Hash,
+    ops::Deref,
+    rc::Rc,
+};
 
 use cgmath::{ElementWise, Matrix4, One, Quaternion, Vector3, Vector4, VectorSpace, Zero};
 use wgpu::util::DeviceExt;
@@ -35,7 +41,7 @@ impl Transform {
 }
 
 pub trait Renderable {
-    fn as_any_mut(&mut self) -> &mut dyn Any;
+    // fn as_any_mut(&mut self) -> &mut dyn Any;
     fn update_render_buffers(&mut self, ctx: &SurfaceContext);
     fn update_compute_buffers(
         &mut self,
@@ -57,6 +63,71 @@ pub struct RenderObject {
 pub struct ComputeObject {
     buffer: wgpu::Buffer,
     pub bind_group: wgpu::BindGroup,
+}
+
+pub struct Mobject<T> {
+    inner: Rc<RefCell<Shape<T>>>,
+}
+
+impl<T> Deref for Mobject<T> {
+    type Target = Rc<RefCell<Shape<T>>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<T> Mobject<T> {
+    pub fn new(mobject: Shape<T>) -> Self {
+        Self {
+            inner: Rc::new(RefCell::new(mobject)),
+        }
+    }
+
+    pub fn rotate(&self, rotation: Quaternion<f32>) -> &Self {
+        self.borrow_mut().transform.rotation = rotation * self.borrow_mut().transform.rotation;
+        self
+    }
+    pub fn scale_vec(&self, scale: impl Into<Vector3<f32>>) -> &Self {
+        self.borrow_mut()
+            .transform
+            .scale
+            .mul_assign_element_wise(scale.into());
+        self
+    }
+    pub fn scale(&self, scale: f32) -> &Self {
+        self.borrow_mut()
+            .transform
+            .scale
+            .mul_assign_element_wise(Vector3::new(scale, scale, scale));
+        self
+    }
+    pub fn shift(&self, offset: impl Into<Vector3<f32>>) -> &Self {
+        self.borrow_mut().transform.position += offset.into();
+        self
+    }
+
+    pub fn color(&self, color: impl Into<Vector4<f32>>) -> &Self {
+        *self.borrow_mut().color = color.into();
+        self
+    }
+
+    pub fn interpolate<U, V>(&self, a: &Shape<U>, b: &Shape<V>, t: f32) {
+        let mut self_mut = self.borrow_mut();
+        *self_mut.points = a
+            .points
+            .iter()
+            .zip(b.points.iter())
+            .map(|(a, b)| a.lerp(*b, t))
+            .collect();
+        *self_mut.transform = a.transform.lerp(&b.transform, t);
+        *self_mut.render_object.as_mut().unwrap().uniforms = a
+            .render_object
+            .as_ref()
+            .unwrap()
+            .uniforms
+            .lerp(&b.render_object.as_ref().unwrap().uniforms, t);
+    }
 }
 
 pub struct Shape<T> {
@@ -103,51 +174,9 @@ impl<T> Shape<T> {
             compute_object: None,
         }
     }
-    pub fn rotate(&mut self, rotation: Quaternion<f32>) -> &mut Self {
-        self.transform.rotation = rotation * self.transform.rotation;
-        self
-    }
-    pub fn scale_vec(&mut self, scale: impl Into<Vector3<f32>>) -> &mut Self {
-        self.transform.scale.mul_assign_element_wise(scale.into());
-        self
-    }
-    pub fn scale(&mut self, scale: f32) -> &mut Self {
-        self.transform
-            .scale
-            .mul_assign_element_wise(Vector3::new(scale, scale, scale));
-        self
-    }
-    pub fn shift(&mut self, offset: impl Into<Vector3<f32>>) -> &mut Self {
-        self.transform.position += offset.into();
-        self
-    }
-    pub fn color(&mut self, color: impl Into<Vector4<f32>>) -> &mut Self {
-        *self.color = color.into();
-        self
-    }
-
-    pub fn interpolate<U, V>(&mut self, a: &Shape<U>, b: &Shape<V>, t: f32) {
-        *self.points = a
-            .points
-            .iter()
-            .zip(b.points.iter())
-            .map(|(a, b)| a.lerp(*b, t))
-            .collect();
-        *self.transform = a.transform.lerp(&b.transform, t);
-        *self.render_object.as_mut().unwrap().uniforms = a
-            .render_object
-            .as_ref()
-            .unwrap()
-            .uniforms
-            .lerp(&b.render_object.as_ref().unwrap().uniforms, t);
-    }
 }
 
 impl<T: 'static> Renderable for Shape<T> {
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-
     fn get_render_object(&self) -> &RenderObject {
         self.render_object.as_ref().unwrap()
     }

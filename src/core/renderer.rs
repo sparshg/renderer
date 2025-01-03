@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+
 use wgpu::{CommandEncoder, ComputePipeline, RenderPipeline, ShaderStages};
 
 use super::{
@@ -96,18 +98,22 @@ impl QBezierRenderer {
         depth_view: &wgpu::TextureView,
         cam_bind_group: &wgpu::BindGroup,
         encoder: &mut CommandEncoder,
-        object: &mut Box<dyn Renderable>,
+        object: &RefCell<dyn Renderable>,
         clear: bool,
     ) {
-        if object.update_compute_buffers(ctx, &self.compute_layout()) {
+        if object
+            .borrow_mut()
+            .update_compute_buffers(ctx, &self.compute_layout())
+        {
             self.compute_pipeline
                 .begin_pass("Compute Pass")
-                .add_bind_group(&object.get_compute_object().bind_group)
-                .pass(encoder, (object.num_compute_workgroups(), 1, 1));
+                .add_bind_group(&object.borrow().get_compute_object().bind_group)
+                .pass(encoder, (object.borrow().num_compute_workgroups(), 1, 1));
         }
-        object.update_render_buffers(ctx);
+        object.borrow_mut().update_render_buffers(ctx);
 
-        let render_object = object.get_render_object();
+        let obj = object.borrow();
+        let render_object = obj.get_render_object();
 
         self.stencil_pipeline
             .begin_pass("Stencil Pass")

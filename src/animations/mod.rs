@@ -48,21 +48,21 @@ where
     }
 }
 
-impl<T, V> Animation for Transformation<T, V>
-where
-    T: Clone + 'static,
-    V: Clone,
-{
-    fn apply(&mut self, time: f32) {
-        let progress = (time / self.duration).clamp(0.0, 1.0);
-        self.curr
-            .as_any_mut()
-            .downcast_mut::<Shape<T>>()
-            .unwrap()
-            .interpolate(&self.from, &self.to, progress);
-    }
+// impl<T, V> Animation for Transformation<T, V>
+// where
+//     T: Clone + 'static,
+//     V: Clone,
+// {
+//     fn apply(&mut self, time: f32) {
+//         let progress = (time / self.duration).clamp(0.0, 1.0);
+//         self.curr
+//             .as_any_mut()
+//             .downcast_mut::<Shape<T>>()
+//             .unwrap()
+//             .interpolate(&self.from, &self.to, progress);
+//     }
 
-    fn get_target(&mut self) -> &mut Box<dyn Renderable> {
-        &mut self.curr
-    }
-}
+//     fn get_target(&mut self) -> &mut Box<dyn Renderable> {
+//         &mut self.curr
+//     }
+// }
