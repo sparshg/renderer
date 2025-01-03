@@ -214,16 +214,19 @@ impl<T: HasPoints + 'static> Renderable for Shape<T> {
         if !self.shape.reset() {
             return false;
         }
-
         self.points = self.shape.calc_points();
 
         let mut data = encase::StorageBuffer::new(Vec::new());
         data.write(self.points.deref()).unwrap();
         let data: Vec<u8> = data.into_inner();
 
-        let buffer = &self.compute_object.as_ref().unwrap().buffer;
-        if (data.len() / 2..=data.len()).contains(&(buffer.size() as usize)) {
-            ctx.queue().write_buffer(buffer, 0, &data);
+        if self
+            .compute_object
+            .as_ref()
+            .is_some_and(|ob| (data.len() / 2..=data.len()).contains(&(ob.buffer.size() as usize)))
+        {
+            ctx.queue()
+                .write_buffer(&self.compute_object.as_ref().unwrap().buffer, 0, &data);
             return true;
         }
 
@@ -264,16 +267,6 @@ impl<T: HasPoints + 'static> Renderable for Shape<T> {
 impl<T: HasPoints> Shape<T> {
     const VERTEX_SIZE: usize = 32;
 
-    pub fn create_buffers(
-        &mut self,
-        ctx: &SurfaceContext,
-        compute_layout: wgpu::BindGroupLayout,
-        render_layout: wgpu::BindGroupLayout,
-    ) {
-        self.create_render_object(ctx, render_layout);
-        self.create_compute_object(ctx, compute_layout);
-    }
-
     fn create_vertex_buffer(&self, ctx: &SurfaceContext) -> wgpu::Buffer {
         ctx.device().create_buffer(&wgpu::BufferDescriptor {
             label: Some("Vertex Buffer"),
@@ -297,7 +290,7 @@ impl<T: HasPoints> Shape<T> {
         })
     }
 
-    fn create_render_object(&mut self, ctx: &SurfaceContext, layout: wgpu::BindGroupLayout) {
+    pub fn create_render_object(&mut self, ctx: &SurfaceContext, layout: wgpu::BindGroupLayout) {
         self.points = self.shape.calc_points();
         let index_buffer = self.create_index_buffer(ctx);
         let vertex_buffer = self.create_vertex_buffer(ctx);
@@ -328,33 +321,5 @@ impl<T: HasPoints> Shape<T> {
             bind_group,
             uniforms,
         });
-    }
-
-    fn create_compute_object(&mut self, ctx: &SurfaceContext, layout: wgpu::BindGroupLayout) {
-        let mut data = encase::StorageBuffer::new(Vec::new());
-        data.write(self.points.deref()).unwrap();
-        let data: Vec<u8> = data.into_inner();
-
-        let buffer = ctx
-            .device()
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Point Buffer"),
-                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-                contents: &data,
-            });
-
-        let render_object = self.render_object.as_ref().unwrap();
-
-        let bind_group = layout.attach(
-            ctx,
-            "Compute Bind Group",
-            vec![
-                buffer.as_entire_binding(),
-                render_object.vertex_buffer.as_entire_binding(),
-                render_object.index_buffer.as_entire_binding(),
-            ],
-        );
-
-        self.compute_object = Some(ComputeObject { bind_group, buffer });
     }
 }

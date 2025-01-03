@@ -121,11 +121,9 @@ impl Scene {
     }
 
     pub fn add<T: HasPoints + 'static>(&mut self, ctx: &SurfaceContext, shape: &Mobject<T>) {
-        shape.borrow_mut().create_buffers(
-            ctx,
-            self.qbezier_renderer.compute_layout(),
-            self.qbezier_renderer.render_layout(),
-        );
+        shape
+            .borrow_mut()
+            .create_render_object(ctx, self.qbezier_renderer.render_layout());
         self.objects.push(shape.deref().clone());
     }
 
