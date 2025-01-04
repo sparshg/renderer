@@ -4,8 +4,11 @@ mod geometry;
 mod texture;
 
 // use animations::{Animation, Transformation};
+use animations::Transformation;
+use cgmath::{Deg, Quaternion, Rad, Rotation2, Rotation3};
 use core::{Scene, SurfaceContext};
 use geometry::shapes::{Arc, Square};
+use std::f32::consts::PI;
 use winit::event::WindowEvent;
 
 pub const VERTEX_STRUCT_SIZE: u64 = 32;
@@ -21,23 +24,22 @@ impl State {
         let q1 = Arc::circle(1.);
         q1.shift((0.0, 0.0, 0.0)).scale(0.5);
 
+        // let q1 = Square::new(1.);
+        // q1.shift((0.0, 0.0, 0.0))
         let q2 = Square::new(1.);
-        q2.shift((0.0, 0.0, 0.0)).color((0.8, 0.05, 0.05, 0.9));
+        q2.shift((0.0, 0.0, 0.0))
+            .color((0.8, 0.95, 0.05, 0.9))
+            .rotate(Quaternion::from_angle_z(Deg(45.)));
         // q1.borrow().points
         // let mut q3 = q1.clone();
         // q3.interpolate(&q1, &q2, 0.2);
-        // let mut anim = Transformation::new(&q1, &q2, 1.);
-        // anim.curr.qbezier_mut().create_render_buffers(
-        //     ctx,
-        //     &scene
-        //         .qbezier_renderer
-        //         .render_pipeline
-        //         .get_bind_group_layout(1),
-        // );
-        // scene.animations.push(Box::new(anim));
-        scene.add(ctx, &q1);
+        // q1.borrow_mut().radius = 0.1;
+        // q1.shift((1.0, 0.0, 0.0)).color((0.8, 0.05, 0.05, 0.9));
+        // scene.add(ctx, &q1);
         scene.add(ctx, &q2);
-        q1.shift((1.0, 0.0, 0.0)).color((0.8, 0.05, 0.05, 0.9));
+        let anim = Transformation::new(&q2, &q1, 1.);
+        scene.animations.push(Box::new(anim));
+        // scene.remove(q2);
         // scene.modify(&q2, |q| {
         //     q.shift((-1.0, 0.0, 0.0)).scale(0.5);
         // });

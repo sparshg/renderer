@@ -54,7 +54,7 @@ impl HasPoints for Arc {
         let n_points = 2 * n_components + 1;
         let angles = (0..n_points).map(|i| i as f32 * self.angle / (n_points - 1) as f32);
         let mut points = angles
-            .map(|angle| Vector3::new(angle.cos(), angle.sin(), 0.))
+            .map(|angle| Vector3::new(angle.cos(), angle.sin(), 0.) * self.radius)
             .collect::<Vec<_>>();
         let theta = self.angle / n_components as f32;
         let handle_adjust = 1.0 / (theta / 2.0).cos();

@@ -26,6 +26,7 @@ pub use utils::pipeline::PipelineBuilder;
 pub use window::App;
 pub use window::Window;
 
+use crate::animations::Animation;
 // use crate::animations::Animation;
 use crate::texture::Texture;
 pub use shape::Mobject;
@@ -61,20 +62,20 @@ impl ObjectUniforms {
     }
 }
 
-impl ObjectUniforms {
-    pub fn lerp(&self, other: &Self, t: f32) -> Self {
-        Self {
-            model: self.model.lerp(other.model, t),
-            color: self.color.lerp(other.color, t),
-        }
-    }
-}
+// impl ObjectUniforms {
+//     pub fn lerp(&self, other: &Self, t: f32) -> Self {
+//         Self {
+//             model: self.model.lerp(other.model, t),
+//             color: self.color.lerp(other.color, t),
+//         }
+//     }
+// }
 
 pub struct Scene {
     pub camera: Camera,
     pub depth_texture: Texture,
     pub objects: Vec<Rc<RefCell<dyn Renderable>>>,
-    // pub animations: Vec<Box<dyn Animation>>,
+    pub animations: Vec<Box<dyn Animation>>,
     pub qbezier_renderer: QBezierRenderer,
     t: f32,
     // mesh_renderer: MeshRenderer,
@@ -111,7 +112,7 @@ impl Scene {
             qbezier_renderer: QBezierRenderer::new(ctx, &camera.bind_group_layout),
             depth_texture,
             camera,
-            // animations: Vec::new(),
+            animations: Vec::new(),
             t: 0.0,
         }
     }
@@ -128,21 +129,22 @@ impl Scene {
     }
 
     pub fn remove<T: HasPoints + 'static>(&mut self, shape: Mobject<T>) {
+        // TODO: This is O(n)
         self.objects
             .retain(|x| Rc::ptr_eq(x, &Self::upcast(shape.clone())));
     }
 
     pub fn update(&mut self, ctx: &SurfaceContext) {
         self.camera.update_camera(ctx);
-        //     for anim in self.animations.iter_mut() {
-        //         anim.apply(self.t);
-        //         println!("{}", self.t);
-        //         self.t += self.t * 0.008 + 0.01;
-        //     }
-        //     if self.t > 1. {
-        //         dbg!(&self.animations[0].get_target().qbezier().points);
-        //         panic!();
-        //     }
+        for anim in &self.animations {
+            anim.apply(self.t);
+            // println!("{}", self.t);
+            self.t += 0.01;
+        }
+        if self.t > 1. {
+            // dbg!(&self.animations[0].get_target().qbezier().points);
+            panic!();
+        }
     }
 
     pub fn render(&mut self, ctx: &SurfaceContext, view: &wgpu::TextureView) {

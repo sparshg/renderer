@@ -2,7 +2,7 @@ use std::{
     any::Any,
     cell::{Cell, RefCell},
     hash::Hash,
-    ops::Deref,
+    ops::{Deref, DerefMut},
     rc::Rc,
 };
 
@@ -58,7 +58,6 @@ pub struct RenderObject {
     pub index_buffer: wgpu::Buffer,
     uniform_buffer: wgpu::Buffer,
     pub bind_group: wgpu::BindGroup,
-    uniforms: Latch<ObjectUniforms>,
 }
 pub struct ComputeObject {
     buffer: wgpu::Buffer,
@@ -85,7 +84,8 @@ impl<T: HasPoints> Mobject<T> {
     }
 
     pub fn rotate(&self, rotation: Quaternion<f32>) -> &Self {
-        self.borrow_mut().transform.rotation = rotation * self.borrow_mut().transform.rotation;
+        let r = rotation * self.borrow().transform.rotation;
+        self.borrow_mut().transform.rotation = r;
         self
     }
     pub fn scale_vec(&self, scale: impl Into<Vector3<f32>>) -> &Self {
@@ -108,26 +108,11 @@ impl<T: HasPoints> Mobject<T> {
     }
 
     pub fn color(&self, color: impl Into<Vector4<f32>>) -> &Self {
-        *self.borrow_mut().color = color.into();
+        self.borrow_mut().uniforms.color = color.into();
         self
     }
 
-    // pub fn interpolate<U, V>(&self, a: &Shape<U>, b: &Shape<V>, t: f32) {
-    //     let mut self_mut = self.borrow_mut();
-    //     *self_mut.points = a
-    //         .points
-    //         .iter()
-    //         .zip(b.points.iter())
-    //         .map(|(a, b)| a.lerp(*b, t))
-    //         .collect();
-    //     *self_mut.transform = a.transform.lerp(&b.transform, t);
-    //     *self_mut.render_object.as_mut().unwrap().uniforms = a
-    //         .render_object
-    //         .as_ref()
-    //         .unwrap()
-    //         .uniforms
-    //         .lerp(&b.render_object.as_ref().unwrap().uniforms, t);
-    // }
+    // pub fn animate(&self) -> AnimationBuilder;
 }
 
 pub trait HasPoints {
@@ -137,8 +122,8 @@ pub trait HasPoints {
 pub struct Shape<T: HasPoints> {
     shape: Latch<T>,
     transform: Latch<Transform>,
-    color: Latch<Vector4<f32>>,
-    pub points: Vec<Vector3<f32>>,
+    pub points: Latch<Vec<Vector3<f32>>>,
+    uniforms: Latch<ObjectUniforms>,
     render_object: Option<RenderObject>,
     compute_object: Option<ComputeObject>,
 }
@@ -151,8 +136,8 @@ where
         Self {
             shape: self.shape.clone(),
             transform: self.transform.clone(),
-            color: self.color.clone(),
             points: self.points.clone(),
+            uniforms: self.uniforms.clone(),
             render_object: None,
             compute_object: None,
         }
@@ -167,16 +152,37 @@ impl<T: HasPoints> Deref for Shape<T> {
     }
 }
 
+impl<T: HasPoints> DerefMut for Shape<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.shape
+    }
+}
+
 impl<T: HasPoints> Shape<T> {
     pub fn new(shape: T) -> Self {
+        let transform = Latch::new_reset(Transform::new());
+        let color = Vector4::new(1.0, 1.0, 1.0, 1.0);
+        let uniforms = Latch::new_reset(ObjectUniforms::new(&transform, color));
         Self {
+            transform,
+            uniforms,
             shape: Latch::new_set(shape),
-            transform: Latch::new_reset(Transform::new()),
-            color: Latch::new_reset(Vector4::new(1.0, 1.0, 1.0, 1.0)),
-            points: Vec::new(),
+            points: Latch::new_reset(Vec::new()),
             render_object: None,
             compute_object: None,
         }
+    }
+
+    pub fn interpolate<U: HasPoints, V: HasPoints>(&mut self, a: &Shape<U>, b: &Shape<V>, t: f32) {
+        *self.points = a
+            .points
+            .iter()
+            .zip(b.points.iter())
+            .map(|(a, b)| a.lerp(*b, t))
+            .collect();
+        *self.transform = a.transform.lerp(&b.transform, t);
+        self.uniforms.color = a.uniforms.color.lerp(b.uniforms.color, t);
+        println!("{:?}", b.uniforms.model);
     }
 }
 
@@ -190,19 +196,18 @@ impl<T: HasPoints + 'static> Renderable for Shape<T> {
     }
 
     fn update_render_buffers(&mut self, ctx: &SurfaceContext) {
-        let render_object = self.render_object.as_mut().unwrap();
         if self.transform.reset() {
-            render_object.uniforms.model = self.transform.get_matrix();
+            self.uniforms.model = self.transform.get_matrix();
         }
-        if self.color.reset() {
-            render_object.uniforms.color = *self.color;
-        }
-        if render_object.uniforms.reset() {
+        if self.uniforms.reset() {
             let mut buff = encase::UniformBuffer::new(Vec::<u8>::new());
-            buff.write(render_object.uniforms.deref()).unwrap();
+            buff.write(self.uniforms.deref()).unwrap();
             let buff = buff.into_inner();
-            ctx.queue()
-                .write_buffer(&render_object.uniform_buffer, 0, &buff);
+            ctx.queue().write_buffer(
+                &self.render_object.as_ref().unwrap().uniform_buffer,
+                0,
+                &buff,
+            );
         }
     }
 
@@ -211,10 +216,11 @@ impl<T: HasPoints + 'static> Renderable for Shape<T> {
         ctx: &SurfaceContext,
         layout: &wgpu::BindGroupLayout,
     ) -> bool {
-        if !self.shape.reset() {
-            return false;
+        match (self.shape.reset(), self.points.reset()) {
+            (false, false) => return false,
+            (true, false) => *self.points = self.shape.calc_points(),
+            _ => (),
         }
-        self.points = self.shape.calc_points();
 
         let mut data = encase::StorageBuffer::new(Vec::new());
         data.write(self.points.deref()).unwrap();
@@ -291,13 +297,16 @@ impl<T: HasPoints> Shape<T> {
     }
 
     pub fn create_render_object(&mut self, ctx: &SurfaceContext, layout: wgpu::BindGroupLayout) {
-        self.points = self.shape.calc_points();
+        *self.points = self.shape.calc_points();
+        self.points.reset();
+        if self.transform.reset() {
+            self.uniforms.model = self.transform.get_matrix();
+        }
         let index_buffer = self.create_index_buffer(ctx);
         let vertex_buffer = self.create_vertex_buffer(ctx);
-        let uniforms = Latch::new_reset(ObjectUniforms::new(&self.transform, *self.color));
 
         let mut buff = encase::UniformBuffer::new(Vec::<u8>::new());
-        buff.write(uniforms.deref()).unwrap();
+        buff.write(self.uniforms.deref()).unwrap();
         let buff = buff.into_inner();
 
         let uniform_buffer = ctx
@@ -319,7 +328,6 @@ impl<T: HasPoints> Shape<T> {
             index_buffer,
             uniform_buffer,
             bind_group,
-            uniforms,
         });
     }
 }
