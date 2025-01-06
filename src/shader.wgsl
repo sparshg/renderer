@@ -30,7 +30,7 @@ fn vs_main(
     out.uv = model.uv;
     out.clip_position = camera.view_proj * uniforms.model * vec4<f32>(model.position, 1.0);
     out.col = uniforms.color;
-    // out.col = rand(model.uv + model.position.xy);
+    // out.col = vec4<f32>(vec3<f32>(rand(model.uv + model.position.xy)), 1.0);
     return out;
 }
  

@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::ops::Deref;
 use std::rc::Rc;
+use std::time::Duration;
 
 use camera::Camera;
 use cgmath::Matrix4;
@@ -134,16 +135,17 @@ impl Scene {
             .retain(|x| Rc::ptr_eq(x, &Self::upcast(shape.clone())));
     }
 
-    pub fn update(&mut self, ctx: &SurfaceContext) {
+    pub fn update(&mut self, ctx: &SurfaceContext, dt: Duration) {
         self.camera.update_camera(ctx);
         for anim in &self.animations {
             anim.apply(self.t);
             // println!("{}", self.t);
-            self.t += 0.01;
+            self.t += dt.as_secs_f32() / 1.;
         }
         if self.t > 1. {
+            self.t = 1.;
             // dbg!(&self.animations[0].get_target().qbezier().points);
-            panic!();
+            // panic!();
         }
     }
 

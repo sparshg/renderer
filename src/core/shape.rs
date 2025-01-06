@@ -182,7 +182,10 @@ impl<T: HasPoints> Shape<T> {
             .collect();
         *self.transform = a.transform.lerp(&b.transform, t);
         self.uniforms.color = a.uniforms.color.lerp(b.uniforms.color, t);
-        println!("{:?}", b.uniforms.model);
+        for point in &*self.points {
+            println!("{:?}", point);
+        }
+        println!();
     }
 }
 

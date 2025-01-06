@@ -1,4 +1,7 @@
-use std::rc::Rc;
+use std::{
+    rc::Rc,
+    time::{Duration, Instant},
+};
 
 use winit::{
     event::{Event, WindowEvent},
@@ -10,7 +13,7 @@ use super::utils::context::SurfaceContext;
 pub trait App {
     fn resize(&mut self, ctx: &SurfaceContext);
     fn render(&mut self, ctx: &SurfaceContext) -> Result<(), wgpu::SurfaceError>;
-    fn update(&mut self, ctx: &SurfaceContext);
+    fn update(&mut self, ctx: &SurfaceContext, dt: Duration);
     fn input(&mut self, event: &WindowEvent);
 }
 pub struct Window {
@@ -36,6 +39,7 @@ impl Window {
     }
 
     pub fn run<T: App>(self, ctx: &mut SurfaceContext<'_>, mut app: T) {
+        let mut last_render_time = Instant::now();
         self.event_loop
             .run(move |event, target| {
                 let Event::WindowEvent { event, .. } = event else {
@@ -52,7 +56,10 @@ impl Window {
                     WindowEvent::CloseRequested => target.exit(),
                     WindowEvent::RedrawRequested => {
                         self.window.request_redraw();
-                        app.update(ctx);
+                        let now = Instant::now();
+                        let dt = now - last_render_time;
+                        last_render_time = now;
+                        app.update(ctx, dt);
                         match app.render(ctx) {
                             Ok(_) => {}
                             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {

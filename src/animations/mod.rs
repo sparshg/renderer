@@ -1,7 +1,9 @@
+pub mod easing;
 use std::{cell::RefCell, ops::Deref, rc::Rc};
 
 use cgmath::VectorSpace;
 
+use crate::animations::easing::Easing;
 use crate::core::{HasPoints, Mobject, Renderable, Shape};
 
 pub trait Animation {
@@ -18,6 +20,7 @@ where
     mob: Rc<RefCell<Shape<T>>>,
     initial: Shape<T>,
     target: Shape<V>,
+    easing: Box<dyn Easing>,
 }
 
 impl<T, V> Transformation<T, V>
@@ -60,6 +63,7 @@ where
             target,
             mob,
             duration,
+            easing: Box::new(easing::EaseInOutCubic),
         }
     }
 }
@@ -73,7 +77,7 @@ where
         let progress = (time / self.duration).clamp(0.0, 1.0);
         self.mob
             .borrow_mut()
-            .interpolate(&self.initial, &self.target, progress);
+            .interpolate(&self.initial, &self.target, self.easing.ease(progress));
     }
 
     // fn get_target(&self) -> Rc<RefCell<dyn Renderable>> {
