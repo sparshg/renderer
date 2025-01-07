@@ -1,10 +1,9 @@
 pub mod easing;
 use std::{cell::RefCell, ops::Deref, rc::Rc};
 
-use cgmath::VectorSpace;
 use easing::Easing;
 
-use crate::core::{HasPoints, Mobject, Renderable, Shape};
+use crate::core::{HasPoints, Mobject, Shape};
 
 pub trait Animation {
     fn apply(&self, time: f32);
@@ -53,7 +52,7 @@ where
         let progress = (time / self.duration).clamp(0.0, 1.0);
         self.mob.borrow_mut().interpolate(
             self.initial.as_ref().unwrap(),
-            &self.target.as_ref().unwrap(),
+            self.target.as_ref().unwrap(),
             self.easing.ease(progress),
         );
     }

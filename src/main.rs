@@ -3,24 +3,31 @@ mod core;
 mod geometry;
 mod texture;
 
-// use animations::{Animation, Transformation};
 use animations::Transformation;
-use cgmath::{Deg, Quaternion, Rad, Rotation2, Rotation3};
-use core::{HasPoints, Scene, SurfaceContext};
+use core::{Scene, SurfaceContext};
 use geometry::shapes::{Square, Triangle};
-use std::{
-    cell::RefCell,
-    f32::consts::PI,
-    ops::Deref,
-    rc::Rc,
-    sync::{Arc, Mutex, MutexGuard},
-    time::Instant,
-};
-use tokio::task::LocalSet;
+use std::{rc::Rc, time::Instant};
 use winit::{
     event::{Event, WindowEvent},
     event_loop::EventLoop,
 };
+
+fn construct(scene: &mut Scene, ctx: &SurfaceContext) {
+    let q1 = geometry::shapes::Arc::circle(1.);
+    q1.shift((0.0, 0.0, 0.0)).scale(0.5);
+
+    let q2 = Square::new(1.);
+    q2.shift((0.0, 0.0, 0.0)).color((0.8, 0.95, 0.05, 0.9));
+
+    let q3 = Triangle::new(1.);
+    q3.shift((0.0, 0.0, 0.0)).color((0.8, 0.05, 0.05, 0.9));
+
+    let q = q1.clone();
+    scene.add(ctx, &q);
+    scene.play(Transformation::new(&q, &q2, 1.));
+    scene.play(Transformation::new(&q, &q3, 1.));
+    scene.play(Transformation::new(&q, &q1, 1.));
+}
 
 struct State<'a> {
     scene: Scene,
@@ -31,23 +38,6 @@ impl<'a> State<'a> {
     fn new(ctx: SurfaceContext<'a>) -> Self {
         let scene = Scene::new(&ctx);
         Self { scene, ctx }
-    }
-
-    fn construct(&mut self) {
-        let q1 = geometry::shapes::Arc::circle(1.);
-        q1.shift((0.0, 0.0, 0.0)).scale(0.5);
-
-        let q2 = Square::new(1.);
-        q2.shift((0.0, 0.0, 0.0)).color((0.8, 0.95, 0.05, 0.9));
-
-        let q3 = Triangle::new(1.);
-        q3.shift((0.0, 0.0, 0.0)).color((0.8, 0.05, 0.05, 0.9));
-
-        let q = q1.clone();
-        self.scene.add(&self.ctx, &q);
-        self.scene.play(Transformation::new(&q, &q2, 1.));
-        self.scene.play(Transformation::new(&q, &q3, 1.));
-        self.scene.play(Transformation::new(&q, &q1, 1.));
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -94,7 +84,7 @@ async fn main() {
     env_logger::init();
     let ctx = core::Context::init().await.attach_window(&window);
     let mut app = State::new(ctx);
-    app.construct();
+    construct(&mut app.scene, &app.ctx);
 
     let window = window.clone();
     let mut last_render_time = Instant::now();
