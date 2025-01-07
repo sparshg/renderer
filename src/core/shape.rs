@@ -68,6 +68,14 @@ pub struct Mobject<T: HasPoints> {
     inner: Rc<RefCell<Shape<T>>>,
 }
 
+impl<T: Clone + HasPoints> Clone for Mobject<T> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: Rc::new(RefCell::new(self.inner.borrow().clone())),
+        }
+    }
+}
+
 impl<T: HasPoints> Deref for Mobject<T> {
     type Target = Rc<RefCell<Shape<T>>>;
 
@@ -182,10 +190,6 @@ impl<T: HasPoints> Shape<T> {
             .collect();
         *self.transform = a.transform.lerp(&b.transform, t);
         self.uniforms.color = a.uniforms.color.lerp(b.uniforms.color, t);
-        for point in &*self.points {
-            println!("{:?}", point);
-        }
-        println!();
     }
 }
 

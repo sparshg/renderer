@@ -31,6 +31,33 @@ impl HasPoints for Square {
         .collect::<Vec<_>>()
     }
 }
+#[derive(Clone)]
+pub struct Triangle {
+    side: f32,
+}
+
+impl Triangle {
+    pub fn new(side: f32) -> Mobject<Triangle> {
+        Mobject::new(Shape::new(Self { side }))
+    }
+}
+
+impl HasPoints for Triangle {
+    fn calc_points(&self) -> Vec<Vector3<f32>> {
+        [
+            (0., 1., 0.),
+            (-0.4330127, 0.25, 0.),
+            (-0.8660254, -0.5, 0.),
+            (-0., -0.5, 0.),
+            (0.8660254, -0.5, 0.),
+            (0.4330127, 0.25, 0.),
+            (0., 1., 0.),
+        ]
+        .into_iter()
+        .map(|(x, y, z)| Vector3::new(x, y, z) * self.side)
+        .collect::<Vec<_>>()
+    }
+}
 
 #[derive(Clone)]
 pub struct Arc {

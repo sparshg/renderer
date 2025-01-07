@@ -7,89 +7,135 @@ mod texture;
 use animations::Transformation;
 use cgmath::{Deg, Quaternion, Rad, Rotation2, Rotation3};
 use core::{HasPoints, Scene, SurfaceContext};
-use geometry::shapes::{Arc, Square};
-use std::{f32::consts::PI, ops::Deref};
-use winit::event::WindowEvent;
+use geometry::shapes::{Square, Triangle};
+use std::{
+    cell::RefCell,
+    f32::consts::PI,
+    ops::Deref,
+    rc::Rc,
+    sync::{Arc, Mutex, MutexGuard},
+    time::Instant,
+};
+use tokio::task::LocalSet;
+use winit::{
+    event::{Event, WindowEvent},
+    event_loop::EventLoop,
+};
 
-pub const VERTEX_STRUCT_SIZE: u64 = 32;
-
-struct State {
+struct State<'a> {
     scene: Scene,
+    ctx: SurfaceContext<'a>,
 }
 
-impl State {
-    fn new(ctx: &SurfaceContext) -> Self {
-        let mut scene: Scene = Scene::new(ctx);
+impl<'a> State<'a> {
+    fn new(ctx: SurfaceContext<'a>) -> Self {
+        let scene = Scene::new(&ctx);
+        Self { scene, ctx }
+    }
 
-        let q1 = Arc::circle(1.);
+    fn construct(&mut self) {
+        let q1 = geometry::shapes::Arc::circle(1.);
         q1.shift((0.0, 0.0, 0.0)).scale(0.5);
 
-        // let q1 = Square::new(1.);
-        // q1.shift((0.0, 0.0, 0.0))
         let q2 = Square::new(1.);
         q2.shift((0.0, 0.0, 0.0)).color((0.8, 0.95, 0.05, 0.9));
 
-        // .rotate(Quaternion::from_angle_z(Deg(45.)));
-        // q1.borrow().points
-        // let mut q3 = q1.clone();
-        // q3.interpolate(&q1, &q2, 0.2);
-        // q1.borrow_mut().radius = 0.1;
-        // q1.shift((1.0, 0.0, 0.0)).color((0.8, 0.05, 0.05, 0.9));
-        // scene.add(ctx, &q1);
-        scene.add(ctx, &q1);
-        let anim = Transformation::new(&q1, &q2, 1.);
-        // panic!();
-        scene.animations.push(Box::new(anim));
-        // scene.remove(q2);
-        // scene.modify(&q2, |q| {
-        //     q.shift((-1.0, 0.0, 0.0)).scale(0.5);
-        // });
+        let q3 = Triangle::new(1.);
+        q3.shift((0.0, 0.0, 0.0)).color((0.8, 0.05, 0.05, 0.9));
 
-        // scene.add(anim. );
-
-        Self { scene }
+        let q = q1.clone();
+        self.scene.add(&self.ctx, &q);
+        self.scene.play(Transformation::new(&q, &q2, 1.));
+        self.scene.play(Transformation::new(&q, &q3, 1.));
+        self.scene.play(Transformation::new(&q, &q1, 1.));
     }
-}
 
-impl core::App for State {
-    fn render(&mut self, ctx: &SurfaceContext) -> Result<(), wgpu::SurfaceError> {
-        let frame = ctx.surface.get_current_texture()?;
+    fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+        let frame = self.ctx.surface.get_current_texture()?;
         let view = frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-        self.scene.render(ctx, &view);
+        self.scene.render(&self.ctx, &view);
         frame.present();
 
         Ok(())
     }
 
-    fn resize(&mut self, ctx: &SurfaceContext) {
-        self.scene.camera.aspect = ctx.config.width as f32 / ctx.config.height as f32;
+    fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
+        self.ctx.resize(new_size);
+        self.scene.camera.aspect = self.ctx.config.width as f32 / self.ctx.config.height as f32;
         self.scene.depth_texture = texture::Texture::create_depth_texture(
-            &ctx.device,
-            (ctx.config.width, ctx.config.height),
+            &self.ctx.device,
+            (self.ctx.config.width, self.ctx.config.height),
             "depth_texture",
         );
-        self.update(ctx, std::time::Duration::from_secs(0));
+        self.update(std::time::Duration::from_secs(0));
     }
 
     fn input(&mut self, event: &WindowEvent) {
         self.scene.camera.process_inputs(event)
     }
 
-    fn update(&mut self, ctx: &SurfaceContext, dt: std::time::Duration) {
-        self.scene.update(ctx, dt);
+    fn update(&mut self, dt: std::time::Duration) {
+        self.scene.update(&self.ctx, dt);
     }
 }
 
-async fn run() {
-    let window = core::Window::new("wgpu");
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let event_loop = EventLoop::new().unwrap();
+    let window = Rc::new(
+        winit::window::WindowBuilder::new()
+            .with_title("wgpu")
+            .build(&event_loop)
+            .unwrap(),
+    );
+
     env_logger::init();
-    let w = window.get_window();
-    let mut ctx = core::Context::init().await.attach_window(&w);
-    let app = State::new(&ctx);
-    window.run(&mut ctx, app);
-}
-pub fn main() {
-    pollster::block_on(run());
+    let ctx = core::Context::init().await.attach_window(&window);
+    let mut app = State::new(ctx);
+    app.construct();
+
+    let window = window.clone();
+    let mut last_render_time = Instant::now();
+    event_loop
+        .run(move |event, target| {
+            let Event::WindowEvent { event, .. } = event else {
+                return;
+            };
+            app.input(&event);
+
+            match event {
+                WindowEvent::Resized(new_size) => {
+                    // ctx.resize(new_size);
+                    app.resize(new_size);
+                    window.request_redraw();
+                }
+                WindowEvent::CloseRequested => target.exit(),
+                WindowEvent::RedrawRequested => {
+                    window.request_redraw();
+                    let now = Instant::now();
+                    let dt = now - last_render_time;
+                    last_render_time = now;
+                    app.update(dt);
+                    match app.render() {
+                        Ok(_) => {}
+                        Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
+                            log::error!("Surface lost or outdated");
+                            target.exit();
+                            // app.resize(app.size);
+                        }
+
+                        Err(wgpu::SurfaceError::OutOfMemory) => {
+                            log::error!("OutOfMemory");
+                            target.exit();
+                        }
+
+                        Err(wgpu::SurfaceError::Timeout) => log::warn!("Surface timeout"),
+                    }
+                }
+                _ => {}
+            };
+        })
+        .unwrap();
 }

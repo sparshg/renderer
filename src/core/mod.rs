@@ -6,10 +6,12 @@ mod window;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::collections::VecDeque;
 use std::ops::Deref;
 use std::rc::Rc;
 use std::time::Duration;
 
+use crate::animations::Animation;
 use camera::Camera;
 use cgmath::Matrix4;
 use cgmath::SquareMatrix;
@@ -24,10 +26,6 @@ pub use utils::context::AnyContext;
 pub use utils::context::Context;
 pub use utils::context::SurfaceContext;
 pub use utils::pipeline::PipelineBuilder;
-pub use window::App;
-pub use window::Window;
-
-use crate::animations::Animation;
 // use crate::animations::Animation;
 use crate::texture::Texture;
 pub use shape::Mobject;
@@ -76,7 +74,7 @@ pub struct Scene {
     pub camera: Camera,
     pub depth_texture: Texture,
     pub objects: Vec<Rc<RefCell<dyn Renderable>>>,
-    pub animations: Vec<Box<dyn Animation>>,
+    pub animations: VecDeque<Box<dyn Animation>>,
     pub qbezier_renderer: QBezierRenderer,
     t: f32,
     // mesh_renderer: MeshRenderer,
@@ -113,8 +111,8 @@ impl Scene {
             qbezier_renderer: QBezierRenderer::new(ctx, &camera.bind_group_layout),
             depth_texture,
             camera,
-            animations: Vec::new(),
-            t: 0.0,
+            animations: VecDeque::new(),
+            t: 0.,
         }
     }
 
@@ -137,16 +135,21 @@ impl Scene {
 
     pub fn update(&mut self, ctx: &SurfaceContext, dt: Duration) {
         self.camera.update_camera(ctx);
-        for anim in &self.animations {
+        if let Some(anim) = self.animations.front_mut() {
+            if self.t == 0. {
+                anim.begin();
+            }
             anim.apply(self.t);
-            // println!("{}", self.t);
-            self.t += dt.as_secs_f32() / 1.;
+            self.t += dt.as_secs_f32();
         }
         if self.t > 1. {
-            self.t = 1.;
-            // dbg!(&self.animations[0].get_target().qbezier().points);
-            // panic!();
+            self.animations.pop_front();
+            self.t = 0.;
         }
+    }
+
+    pub fn play(&mut self, anim: impl Animation + 'static) {
+        self.animations.push_back(Box::new(anim));
     }
 
     pub fn render(&mut self, ctx: &SurfaceContext, view: &wgpu::TextureView) {
@@ -163,19 +166,6 @@ impl Scene {
                 false,
             );
         }
-
-        // for anim in self.animations.iter_mut() {
-        //     let mut object = anim.get_target();
-        //     self.qbezier_renderer.render(
-        //         ctx,
-        //         view,
-        //         &self.depth_texture.view,
-        //         &self.camera.bind_group,
-        //         &mut encoder,
-        //         object,
-        //         false,
-        //     );
-        // }
 
         ctx.queue().submit(std::iter::once(encoder.finish()));
     }

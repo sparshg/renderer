@@ -18,6 +18,7 @@ macro_rules! define_easing {
 
 define_easing!(Linear, |t: f32| t);
 
+// from https://easings.net/
 define_easing!(EaseInSine, |t: f32| 1. - (1. - t).cos());
 define_easing!(EaseOutSine, |t: f32| t.sin());
 define_easing!(EaseInOutSine, |t: f32| 0.5 - (0.5 * t).cos());
@@ -49,15 +50,13 @@ define_easing!(EaseInOutQuint, |t: f32| match t {
     _ => 1. + (t - 1.).powi(5) * 16.,
 });
 
-define_easing!(EaseInExpo, |t: f32| if t == 0. {
-    0.
-} else {
-    2.0f32.powf(10. * (t - 1.))
+define_easing!(EaseInExpo, |t: f32| match t {
+    0. => 0.,
+    _ => 2.0f32.powf(10. * (t - 1.)),
 });
-define_easing!(EaseOutExpo, |t: f32| if t == 1. {
-    1.
-} else {
-    1. - 2.0f32.powf(-10. * t)
+define_easing!(EaseOutExpo, |t: f32| match t {
+    1. => 1.,
+    _ => 1. - 2.0f32.powf(-10. * t),
 });
 define_easing!(EaseInOutExpo, |t: f32| match t {
     0. => 0.,
@@ -106,7 +105,7 @@ define_easing!(EaseOutBounce, |t: f32| match t {
     _ => 7.5625 * (t - 2.625 / 2.75) * (t - 2.625 / 2.75) + 0.984375,
 });
 define_easing!(EaseInOutBounce, |t: f32| match t {
-    t if t < 0.5 => EaseInBounce.ease(t * 2.) * 0.5,
+    ..0.5 => EaseInBounce.ease(t * 2.) * 0.5,
     _ => EaseOutBounce.ease(t * 2. - 1.) * 0.5 + 0.5,
 });
 
