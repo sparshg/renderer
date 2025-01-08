@@ -6,7 +6,7 @@ use easing::Easing;
 use crate::core::{HasPoints, Mobject, Shape};
 
 pub trait Animation {
-    fn apply(&self, time: f32);
+    fn apply(&self, time: f32) -> bool;
     fn begin(&mut self);
     // fn get_target(&self) -> Rc<RefCell<dyn Renderable>>;
 }
@@ -48,13 +48,17 @@ where
     T: HasPoints + Clone + 'static,
     V: HasPoints + Clone,
 {
-    fn apply(&self, time: f32) {
+    fn apply(&self, time: f32) -> bool {
+        if time > self.duration {
+            return false;
+        }
         let progress = (time / self.duration).clamp(0.0, 1.0);
         self.mob.borrow_mut().interpolate(
             self.initial.as_ref().unwrap(),
             self.target.as_ref().unwrap(),
             self.easing.ease(progress),
         );
+        true
     }
     // TODO: Clone points every time?
 
