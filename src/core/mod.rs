@@ -17,6 +17,7 @@ use encase::ShaderType;
 use renderer::QBezierRenderer;
 pub use shape::HasPoints;
 use shape::Transform;
+use tokio::sync::oneshot;
 pub use utils::bindgroup::{Attach, BindGroupBuilder};
 pub use utils::context::AnyContext;
 pub use utils::context::Context;
@@ -70,7 +71,7 @@ pub struct Scene {
     pub camera: Camera,
     pub depth_texture: Texture,
     pub objects: Vec<Rc<RefCell<dyn Renderable>>>,
-    pub animations: VecDeque<Box<dyn Animation>>,
+    pub animations: Option<(Box<dyn Animation>, oneshot::Sender<()>)>,
     pub qbezier_renderer: QBezierRenderer,
     t: f32,
     // mesh_renderer: MeshRenderer,
@@ -107,7 +108,7 @@ impl Scene {
             qbezier_renderer: QBezierRenderer::new(ctx, &camera.bind_group_layout),
             depth_texture,
             camera,
-            animations: VecDeque::new(),
+            animations: None,
             t: 0.,
         }
     }
@@ -131,21 +132,34 @@ impl Scene {
 
     pub fn update(&mut self, ctx: &SurfaceContext, dt: Duration) {
         self.camera.update_camera(ctx);
-        if let Some(anim) = self.animations.front_mut() {
-            if self.t == 0. {
-                anim.begin();
-            }
+        if let Some((anim, _)) = self.animations.as_mut() {
             anim.apply(self.t);
             self.t += dt.as_secs_f32();
         }
-        if self.t > 1. {
-            self.animations.pop_front();
-            self.t = 0.;
+        // if let Some(anim) = self.animations.front_mut() {
+        //     if self.t == 0. {
+        //         anim.begin();
+        //     }
+        //     anim.apply(self.t);
+        //     self.t += dt.as_secs_f32();
+        // }
+        if self.t > 1. && self.animations.is_some() {
+            let (_, tx) = self.animations.take().unwrap();
+            tx.send(()).unwrap();
         }
     }
 
-    pub fn play(&mut self, anim: impl Animation + 'static) {
-        self.animations.push_back(Box::new(anim));
+    pub fn play(&mut self, mut anim: impl Animation + 'static) -> oneshot::Receiver<()> {
+        println!("Playing animation");
+        self.t = 0.;
+        anim.begin();
+        let (tx, rx) = oneshot::channel();
+        self.animations = Some((Box::new(anim), tx));
+        // while self.t < 1. {
+        //     self.update(ctx, Duration::from_millis(16));
+        //     self.t += 0.016;
+        // }
+        rx
     }
 
     pub fn render(&mut self, ctx: &SurfaceContext, view: &wgpu::TextureView) {
