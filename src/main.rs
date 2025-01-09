@@ -31,7 +31,7 @@ async fn construct(scene: Scene<'_>) {
     scene.play(Transformation::new(&q, &q3, 2.)).await;
 }
 
-#[tokio::main(flavor = "current_thread")]
+#[pollster::main]
 async fn main() {
     let event_loop = EventLoop::new().unwrap();
     let window = Rc::new(
