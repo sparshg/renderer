@@ -98,7 +98,7 @@ impl QBezierRenderer {
         depth_view: &wgpu::TextureView,
         cam_bind_group: &wgpu::BindGroup,
         encoder: &mut CommandEncoder,
-        object: &RefCell<dyn Renderable>,
+        object: &RefCell<dyn Renderable + '_>,
         clear: bool,
     ) {
         if object

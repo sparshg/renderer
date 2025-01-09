@@ -27,7 +27,7 @@ where
 
 impl<T, V> Transformation<T, V>
 where
-    T: HasPoints + Clone + 'static,
+    T: HasPoints + Clone,
     V: HasPoints + Clone,
 {
     pub fn new(initial: &Mobject<T>, target: &Mobject<V>, duration: f32) -> Self {
@@ -45,7 +45,7 @@ where
 
 impl<T, V> Animation for Transformation<T, V>
 where
-    T: HasPoints + Clone + 'static,
+    T: HasPoints + Clone,
     V: HasPoints + Clone,
 {
     fn apply(&self, time: f32) -> bool {

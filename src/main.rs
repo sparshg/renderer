@@ -57,7 +57,6 @@ async fn main() {
         .spawn_local(construct(scene.clone()))
         .expect("Failed to spawn");
 
-    let window = window.clone();
     let mut last_render_time = Instant::now();
     event_loop
         .run(move |event, target| {

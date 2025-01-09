@@ -1,4 +1,3 @@
-
 use winit::dpi::PhysicalSize;
 
 pub trait AnyContext {
@@ -65,7 +64,7 @@ impl Context {
         let mut size = window.inner_size();
         size.width = size.width.max(1);
         size.height = size.height.max(1);
-        let surface = self.instance.create_surface(window).unwrap();
+        let surface: wgpu::Surface<'_> = self.instance.create_surface(window).unwrap();
 
         let mut config = surface
             .get_default_config(&self.adapter, size.width, size.height)

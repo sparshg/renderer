@@ -80,15 +80,15 @@ impl<'a> Scene<'a> {
         }
     }
 
-    pub fn add<T: HasPoints + 'static>(&self, shape: &Mobject<T>) {
+    pub fn add<T: HasPoints + 'a>(&self, shape: &Mobject<T>) {
         self.inner.borrow_mut().add(shape);
     }
 
-    pub fn remove<T: HasPoints + 'static>(&self, shape: Mobject<T>) {
+    pub fn remove<T: HasPoints + 'a>(&self, shape: Mobject<T>) {
         self.inner.borrow_mut().remove(shape);
     }
 
-    pub async fn play(&self, anim: impl Animation + 'static) {
+    pub async fn play(&self, anim: impl Animation + 'a) {
         let rx = self.inner.borrow_mut().play(anim);
         rx.await.unwrap();
     }
@@ -98,8 +98,8 @@ pub struct InnerScene<'a> {
     ctx: SurfaceContext<'a>,
     camera: Camera,
     depth_texture: Texture,
-    objects: Vec<Rc<RefCell<dyn Renderable>>>,
-    animation: Option<(Box<dyn Animation>, oneshot::Sender<()>)>,
+    objects: Vec<Rc<RefCell<dyn Renderable + 'a>>>,
+    animation: Option<(Box<dyn Animation + 'a>, oneshot::Sender<()>)>,
     qbezier_renderer: QBezierRenderer,
     t: f32,
     // mesh_renderer: MeshRenderer,
@@ -142,18 +142,18 @@ impl<'a> InnerScene<'a> {
         }
     }
 
-    fn upcast<T: HasPoints + 'static>(shape: Rc<RefCell<Shape<T>>>) -> Rc<RefCell<dyn Renderable>> {
+    fn upcast<T: HasPoints + 'a>(shape: Rc<RefCell<Shape<T>>>) -> Rc<RefCell<dyn Renderable + 'a>> {
         shape
     }
 
-    fn add<T: HasPoints + 'static>(&mut self, shape: &Mobject<T>) {
+    fn add<T: HasPoints + 'a>(&mut self, shape: &Mobject<T>) {
         shape
             .borrow_mut()
             .create_render_object(&self.ctx, self.qbezier_renderer.render_layout());
         self.objects.push(shape.deref().clone());
     }
 
-    fn remove<T: HasPoints + 'static>(&mut self, shape: Mobject<T>) {
+    fn remove<T: HasPoints + 'a>(&mut self, shape: Mobject<T>) {
         // TODO: This is O(n)
         self.objects
             .retain(|x| Rc::ptr_eq(x, &Self::upcast(shape.clone())));
@@ -170,7 +170,7 @@ impl<'a> InnerScene<'a> {
         }
     }
 
-    fn play(&mut self, mut anim: impl Animation + 'static) -> oneshot::Receiver<()> {
+    fn play(&mut self, mut anim: impl Animation + 'a) -> oneshot::Receiver<()> {
         self.t = 0.;
         anim.begin();
         let (tx, rx) = oneshot::channel();

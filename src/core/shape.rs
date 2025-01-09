@@ -191,7 +191,7 @@ impl<T: HasPoints> Shape<T> {
     }
 }
 
-impl<T: HasPoints + 'static> Renderable for Shape<T> {
+impl<T: HasPoints> Renderable for Shape<T> {
     fn get_render_object(&self) -> &RenderObject {
         self.render_object.as_ref().unwrap()
     }
