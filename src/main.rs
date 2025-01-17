@@ -29,6 +29,8 @@ async fn construct(scene: Scene<'_>) {
     scene.add(&q);
     scene.play(Transformation::new(&q, &q2, 1.)).await;
     scene.play(Transformation::new(&q, &q3, 2.)).await;
+
+    // q2.animate().
 }
 
 #[pollster::main]

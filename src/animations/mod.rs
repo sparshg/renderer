@@ -1,3 +1,5 @@
+pub mod anim;
+pub mod builder;
 pub mod easing;
 use std::{cell::RefCell, ops::Deref, rc::Rc};
 
@@ -5,7 +7,7 @@ use easing::Easing;
 
 use crate::core::{HasPoints, Mobject, Shape};
 
-pub trait Animation {
+pub trait Animatable {
     fn apply(&self, time: f32) -> bool;
     fn begin(&mut self);
     // fn get_target(&self) -> Rc<RefCell<dyn Renderable>>;
@@ -17,11 +19,11 @@ where
     V: HasPoints,
 {
     duration: f32,
-    mob: Rc<RefCell<Shape<T>>>,
+    mob: Mobject<T>,
     initial: Option<Shape<T>>,
     target: Option<Shape<V>>,
-    initial_mob: Rc<RefCell<Shape<T>>>,
-    target_mob: Rc<RefCell<Shape<V>>>,
+    initial_mob: Mobject<T>,
+    target_mob: Mobject<V>,
     easing: Box<dyn Easing>,
 }
 
@@ -32,9 +34,9 @@ where
 {
     pub fn new(initial: &Mobject<T>, target: &Mobject<V>, duration: f32) -> Self {
         Self {
-            initial_mob: initial.deref().clone(),
-            target_mob: target.deref().clone(),
-            mob: initial.deref().clone(),
+            initial_mob: initial.ref_clone(),
+            target_mob: target.ref_clone(),
+            mob: initial.ref_clone(),
             initial: None,
             target: None,
             easing: Box::new(easing::Smooth),
@@ -43,7 +45,7 @@ where
     }
 }
 
-impl<T, V> Animation for Transformation<T, V>
+impl<T, V> Animatable for Transformation<T, V>
 where
     T: HasPoints + Clone,
     V: HasPoints + Clone,

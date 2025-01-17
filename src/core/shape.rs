@@ -7,6 +7,8 @@ use std::{
 use cgmath::{ElementWise, Matrix4, One, Quaternion, Vector3, Vector4, VectorSpace, Zero};
 use wgpu::util::DeviceExt;
 
+// use crate::animations::builder::AnimationBuilder;
+
 use super::{utils::latch::Latch, AnyContext, Attach, ObjectUniforms, SurfaceContext};
 
 #[derive(Clone)]
@@ -66,6 +68,7 @@ pub struct Mobject<T: HasPoints> {
     inner: Rc<RefCell<Shape<T>>>,
 }
 
+// deep copy
 impl<T: Clone + HasPoints> Clone for Mobject<T> {
     fn clone(&self) -> Self {
         Self {
@@ -73,6 +76,12 @@ impl<T: Clone + HasPoints> Clone for Mobject<T> {
         }
     }
 }
+
+// impl<T: Clone + HasPoints> Mobject<T> {
+//     pub fn animate(&self) -> AnimationBuilder<T> {
+//         // AnimationBuilder::new(self.ref_clone())
+//     }
+// }
 
 impl<T: HasPoints> Deref for Mobject<T> {
     type Target = Rc<RefCell<Shape<T>>>;
@@ -89,6 +98,11 @@ impl<T: HasPoints> Mobject<T> {
         }
     }
 
+    pub fn ref_clone(&self) -> Self {
+        Self {
+            inner: self.deref().clone(),
+        }
+    }
     pub fn rotate(&self, rotation: Quaternion<f32>) -> &Self {
         let r = rotation * self.borrow().transform.rotation;
         self.borrow_mut().transform.rotation = r;

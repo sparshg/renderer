@@ -7,7 +7,7 @@ use std::ops::Deref;
 use std::rc::Rc;
 use std::time::Duration;
 
-use crate::animations::Animation;
+use crate::animations::Animatable;
 use crate::texture::Texture;
 use camera::Camera;
 use cgmath::Matrix4;
@@ -88,7 +88,7 @@ impl<'a> Scene<'a> {
         self.inner.borrow_mut().remove(shape);
     }
 
-    pub async fn play(&self, anim: impl Animation + 'a) {
+    pub async fn play(&self, anim: impl Animatable + 'a) {
         let rx = self.inner.borrow_mut().play(anim);
         rx.await.unwrap();
     }
@@ -99,7 +99,7 @@ pub struct InnerScene<'a> {
     camera: Camera,
     depth_texture: Texture,
     objects: Vec<Rc<RefCell<dyn Renderable + 'a>>>,
-    animation: Option<(Box<dyn Animation + 'a>, oneshot::Sender<()>)>,
+    animation: Option<(Box<dyn Animatable + 'a>, oneshot::Sender<()>)>,
     qbezier_renderer: QBezierRenderer,
     t: f32,
     // mesh_renderer: MeshRenderer,
@@ -170,7 +170,7 @@ impl<'a> InnerScene<'a> {
         }
     }
 
-    fn play(&mut self, mut anim: impl Animation + 'a) -> oneshot::Receiver<()> {
+    fn play(&mut self, mut anim: impl Animatable + 'a) -> oneshot::Receiver<()> {
         self.t = 0.;
         anim.begin();
         let (tx, rx) = oneshot::channel();
