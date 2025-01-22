@@ -34,13 +34,13 @@ fn vs_main(
     return out;
 }
  
- fn rand(n: vec2<f32>) -> f32 {
+fn rand(n: vec2<f32>) -> f32 {
     return fract(sin(dot(n, vec2<f32>(12.9898, 78.233))) * 43758.5453);
 }
 
 @fragment
 fn stencil(in: VertexOutput) {
-    if (in.uv.x * in.uv.x > in.uv.y) {
+    if in.uv.x * in.uv.x > in.uv.y {
         discard;
     }
 }

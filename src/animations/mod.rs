@@ -13,6 +13,10 @@ pub trait Animatable {
     // fn get_target(&self) -> Rc<RefCell<dyn Renderable>>;
 }
 
+pub trait HasAnimation {
+    fn begin(self) -> Self;
+}
+
 pub struct Transformation<T, V>
 where
     T: HasPoints,

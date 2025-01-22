@@ -1,10 +1,13 @@
 use std::{
     cell::RefCell,
+    cmp::Ordering,
     ops::{Deref, DerefMut},
     rc::Rc,
 };
 
-use cgmath::{ElementWise, Matrix4, One, Quaternion, Vector3, Vector4, VectorSpace, Zero};
+use cgmath::{
+    ElementWise, Matrix4, MetricSpace, One, Quaternion, Vector3, Vector4, VectorSpace, Zero,
+};
 use wgpu::util::DeviceExt;
 
 // use crate::animations::builder::AnimationBuilder;
@@ -349,4 +352,49 @@ impl<T: HasPoints> Shape<T> {
             bind_group,
         });
     }
+
+    // fn convex_hull(&self) {
+    // if self.points.len() < 3 {
+    // return self.points.clone();
+    // }
+
+    // Find the point with the lowest y-coordinate, break ties by x-coordinate
+    // let mut min_point = 0;
+    // for i in 1..self.points.len() {
+    //     if self.points[i].y < self.points[min_point].y
+    //         || (self.points[i].y == self.points[min_point].y
+    //             && self.points[i].x < self.points[min_point].x)
+    //     {
+    //         min_point = i;
+    //     }
+    // }
+    // self.points.swap(0, min_point);
+
+    // Sort self.points by polar angle with respect to the pivot
+    // let p = self.points[0];
+    // self.points[1..].sort_by(|q, r| {
+    //     let cross_product = (q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y);
+    //     if cross_product == 0. {
+    //         p.distance2(*q).partial_cmp(&p.distance2(*r)).unwrap()
+    //     } else if cross_product < 0. {
+    //         Ordering::Less
+    //     } else {
+    //         Ordering::Greater
+    //     }
+    // });
+
+    // // Step 3: Build the hull using a stack
+    // let mut hull = vec![self.points[0], self.points[1]];
+    // for &point in &self.points[2..] {
+    //     while hull.len() > 1
+    //         && orientation(&hull[hull.len() - 2], &hull[hull.len() - 1], &point)
+    //             != Ordering::CounterClockwise
+    //     {
+    //         hull.pop();
+    //     }
+    //     hull.push(point);
+    // }
+
+    // hull
+    // }
 }
