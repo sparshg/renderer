@@ -7,6 +7,15 @@ use easing::Easing;
 
 use crate::core::{HasPoints, Mobject, Shape};
 
+fn resample_points(points: &mut Vec<cgmath::Vector3<f32>>, target_len: usize) {
+    let len = points.len();
+    if len < target_len {
+        *points = (0..target_len)
+            .map(|i| points[i * len / target_len])
+            .collect();
+    }
+}
+
 pub trait Animatable {
     fn apply(&self, time: f32) -> bool;
     fn begin(&mut self);
@@ -81,19 +90,9 @@ where
 
         let max_len = initial.points.len().max(target.points.len());
 
-        let len = initial.points.len();
-        if len < max_len {
-            *initial.points = (0..max_len)
-                .map(|i| initial.points[i * len / max_len])
-                .collect();
-        }
+        resample_points(&mut initial.points, max_len);
+        resample_points(&mut target.points, max_len);
 
-        let len = target.points.len();
-        if len < max_len {
-            *target.points = (0..max_len)
-                .map(|i| target.points[i * len / max_len])
-                .collect();
-        }
         self.initial = Some(initial);
         self.target = Some(target);
     }

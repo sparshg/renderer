@@ -12,7 +12,7 @@ use wgpu::util::DeviceExt;
 
 // use crate::animations::builder::AnimationBuilder;
 
-use super::{utils::latch::Latch, AnyContext, Attach, ObjectUniforms, SurfaceContext};
+use super::{utils::latch::Latch, AnyContext, Attach, ObjectUniforms, SurfaceContext, VERTEX_SIZE};
 
 #[derive(Clone)]
 pub struct Transform {
@@ -293,12 +293,10 @@ impl<T: HasPoints> Renderable for Shape<T> {
 }
 
 impl<T: HasPoints> Shape<T> {
-    const VERTEX_SIZE: usize = 32;
-
     fn create_vertex_buffer(&self, ctx: &SurfaceContext) -> wgpu::Buffer {
         ctx.device().create_buffer(&wgpu::BufferDescriptor {
             label: Some("Vertex Buffer"),
-            size: (self.points.len() as u64 / 2 * 3 + 1) * Self::VERTEX_SIZE as wgpu::BufferAddress,
+            size: (self.points.len() as u64 / 2 * 3 + 1) * VERTEX_SIZE as wgpu::BufferAddress,
             usage: wgpu::BufferUsages::VERTEX
                 | wgpu::BufferUsages::STORAGE
                 | wgpu::BufferUsages::COPY_DST,
