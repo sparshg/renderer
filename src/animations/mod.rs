@@ -92,7 +92,7 @@ where
 
         resample_points(&mut initial.points, max_len);
         resample_points(&mut target.points, max_len);
-        
+
         self.initial = Some(initial);
         self.target = Some(target);
     }
