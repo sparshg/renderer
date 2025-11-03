@@ -4,7 +4,7 @@ use wgpu::{CommandEncoder, ComputePipeline, RenderPipeline, ShaderStages};
 
 use super::{
     utils::pipeline::IntoPass, AnyContext, BindGroupBuilder, PipelineBuilder, Renderable,
-    SurfaceContext,
+    SurfaceContext, VERTEX_SIZE,
 };
 
 pub struct QBezierRenderer {
@@ -14,8 +14,23 @@ pub struct QBezierRenderer {
 }
 
 impl QBezierRenderer {
-    // TODO: This is in shape as well
-    const VERTEX_SIZE: usize = 32;
+    fn stencil_write_state() -> wgpu::StencilFaceState {
+        wgpu::StencilFaceState {
+            compare: wgpu::CompareFunction::Always,
+            fail_op: wgpu::StencilOperation::Keep,
+            depth_fail_op: wgpu::StencilOperation::Invert,
+            pass_op: wgpu::StencilOperation::Invert,
+        }
+    }
+
+    fn stencil_read_state() -> wgpu::StencilFaceState {
+        wgpu::StencilFaceState {
+            compare: wgpu::CompareFunction::Equal,
+            fail_op: wgpu::StencilOperation::Keep,
+            depth_fail_op: wgpu::StencilOperation::Keep,
+            pass_op: wgpu::StencilOperation::Keep,
+        }
+    }
 
     pub fn new(ctx: &SurfaceContext<'_>, camera_layout: &wgpu::BindGroupLayout) -> Self {
         let compute_pipeline = Self::make_qbezier_compute_pipeline(ctx);
@@ -24,7 +39,7 @@ impl QBezierRenderer {
             .device
             .create_shader_module(wgpu::include_wgsl!("../shader.wgsl"));
         let vertex_layout = &[wgpu::VertexBufferLayout {
-            array_stride: Self::VERTEX_SIZE as wgpu::BufferAddress,
+            array_stride: VERTEX_SIZE as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x2],
         }];
@@ -36,17 +51,7 @@ impl QBezierRenderer {
         let stencil_pipeline = PipelineBuilder::for_render("Stencil Pipeline", &shader)
             .vertex(vertex_layout)
             .fragment("stencil", &[])
-            .depth_stencil(
-                false,
-                wgpu::StencilFaceState {
-                    compare: wgpu::CompareFunction::Always,
-                    fail_op: wgpu::StencilOperation::Keep,
-                    depth_fail_op: wgpu::StencilOperation::Invert,
-                    pass_op: wgpu::StencilOperation::Invert,
-                },
-                1,
-                1,
-            )
+            .depth_stencil(false, Self::stencil_write_state(), 1, 1)
             .add_bind_group_layout(camera_layout)
             .add_bind_group_layout(&render_layout)
             .build(ctx);
@@ -61,17 +66,7 @@ impl QBezierRenderer {
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             )
-            .depth_stencil(
-                true,
-                wgpu::StencilFaceState {
-                    compare: wgpu::CompareFunction::Equal,
-                    fail_op: wgpu::StencilOperation::Keep,
-                    depth_fail_op: wgpu::StencilOperation::Keep,
-                    pass_op: wgpu::StencilOperation::Keep,
-                },
-                1,
-                1,
-            )
+            .depth_stencil(true, Self::stencil_read_state(), 1, 1)
             .add_bind_group_layout(camera_layout)
             .add_bind_group_layout(&render_layout)
             .build(ctx);

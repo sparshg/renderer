@@ -27,6 +27,9 @@ pub use utils::context::Context;
 pub use utils::context::SurfaceContext;
 pub use utils::pipeline::PipelineBuilder;
 
+/// Vertex size in bytes (4 floats for position/normal + 2 floats for UV = 6 floats * 4 bytes = 24, rounded to 32 for alignment)
+pub const VERTEX_SIZE: usize = 32;
+
 #[derive(Debug, ShaderType, Clone)]
 pub struct ObjectUniforms {
     pub model: Matrix4<f32>,
