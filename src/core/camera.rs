@@ -159,13 +159,14 @@ impl Camera {
         if self.is_backward_pressed {
             self.eye -= self.forward * self.speed;
         }
-        if self.is_left_pressed {
+        if self.is_left_pressed || self.is_right_pressed {
             let right = self.forward.cross(self.up).normalize();
-            self.eye += right * self.speed;
-        }
-        if self.is_right_pressed {
-            let right = self.forward.cross(self.up).normalize();
-            self.eye -= right * self.speed;
+            if self.is_left_pressed {
+                self.eye += right * self.speed;
+            }
+            if self.is_right_pressed {
+                self.eye -= right * self.speed;
+            }
         }
         if self.is_up_pressed {
             self.eye += self.up * self.speed;
